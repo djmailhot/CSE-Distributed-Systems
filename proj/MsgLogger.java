@@ -7,12 +7,11 @@ import java.util.PriorityQueue;
 
 public class MsgLogger {
 	
-	public MsgLogger(){}
-	
-	public void logMsg(String msg, int seqNum){
+	public static void logMsg(int from, String msg, int seqNum){
 
 		String filename = "~";
 		filename = filename.concat(Integer.toString(seqNum));
+		filename = filename.concat(Integer.toString(from));
 		filename = filename.concat(".log");
 		
 		// can we make this atomic instead?  Is that possible?
@@ -20,7 +19,7 @@ public class MsgLogger {
 		FS.write(filename,msg);
 	}
 	
-	public PriorityQueue<MsgLogEntry> getLogs(){
+	public static PriorityQueue<MsgLogEntry> getLogs(){
 		PriorityQueue<MsgLogEntry> logs = new PriorityQueue<MsgLogEntry>();
 		LinkedList<String> fileNames = FS.getFileList();
 		
@@ -29,8 +28,9 @@ public class MsgLogger {
 		for(String s : fileNames){
 			if(s.charAt(0) == '~'){
 				String msg = FS.read(s);
-				int seqNum = Integer.parseInt(s.substring(1, s.length()-4));
-				logs.add(new MsgLogEntry(msg, seqNum));
+				int seqNum = Integer.parseInt(s.substring(1, s.indexOf('~',1)));
+				int from = Integer.parseInt(s.substring(s.indexOf('~',1),s.length()-4));
+				logs.add(new MsgLogEntry(msg, seqNum, from));
 			}
 		}
 		

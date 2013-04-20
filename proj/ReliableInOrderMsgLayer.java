@@ -19,6 +19,7 @@ public class ReliableInOrderMsgLayer {
 	private HashMap<Integer, InChannel> inConnections;
 	private HashMap<Integer, OutChannel> outConnections;
 	private RIONode n;
+	private MsgLogger logger;
 
 	/**
 	 * Constructor.
@@ -33,6 +34,7 @@ public class ReliableInOrderMsgLayer {
 	public ReliableInOrderMsgLayer(RIONode n) {
 		inConnections = new HashMap<Integer, InChannel>();
 		outConnections = new HashMap<Integer, OutChannel>();
+		this.logger = new MsgLogger();
 		this.n = n;
 	}
 	
@@ -45,14 +47,15 @@ public class ReliableInOrderMsgLayer {
 	 *            The Packet of data
 	 */
 	public void RIODataReceive(int from, byte[] msg) {
-		RIOPacket riopkt = RIOPacket.unpack(msg);
-		
 		//log before ACKing.  Guarantees that the msg is always actively being re-sent or
 		//  logged on the server.  This will help us guarantee at-least-once semantics on
 		//  the msg itself.
 		
-		//append to active log
+		logger.logMsg(from, new String(msg));		
 		
+		
+		
+		RIOPacket riopkt = RIOPacket.unpack(msg);		
 
 		// at-most-once semantics
 		byte[] seqNumByteArray = Utility.stringToByteArray("" + riopkt.getSeqNum());
