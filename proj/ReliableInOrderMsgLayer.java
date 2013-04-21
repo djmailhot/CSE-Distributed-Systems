@@ -19,7 +19,7 @@ public class ReliableInOrderMsgLayer {
 	private HashMap<Integer, InChannel> inConnections;
 	private HashMap<Integer, OutChannel> outConnections;
 	private RIONode n;
-	private MsgLogger logger;
+	protected SeqNumLogger snl;
 
 	/**
 	 * Constructor.
@@ -34,8 +34,8 @@ public class ReliableInOrderMsgLayer {
 	public ReliableInOrderMsgLayer(RIONode n) {
 		inConnections = new HashMap<Integer, InChannel>();
 		outConnections = new HashMap<Integer, OutChannel>();
-		this.logger = new MsgLogger();
 		this.n = n;
+		this.snl = new SeqNumLogger();
 	}
 	
 	/**
@@ -49,21 +49,26 @@ public class ReliableInOrderMsgLayer {
 	public void RIODataReceive(int from, byte[] msg) {
 		//log before ACKing.  Guarantees that the msg is always actively being re-sent or
 		//  logged on the server.  This will help us guarantee at-least-once semantics on
-		//  the msg itself.
+		//  the msg itself.  Note if a log file already exists for this from/seqNumber combination
+		//  we will not log it again.
+		RIOPacket riopkt = RIOPacket.unpack(msg);
+		boolean alreadyLogged = MsgLogger.logMsg(from, new String(msg), riopkt.getSeqNum(), MsgLogger.RECV);		
 		
-		logger.logMsg(from, new String(msg));		
 		
-		
-		
-		RIOPacket riopkt = RIOPacket.unpack(msg);		
+					
 
-		// at-most-once semantics
+		// ACK - will re-send if we have already seen this packet
 		byte[] seqNumByteArray = Utility.stringToByteArray("" + riopkt.getSeqNum());
 		n.send(from, Protocol.ACK, seqNumByteArray);
 		
+		// we have already seen this packet and logged it.  Its also possible we have received it before
+		//  and already processed it fully.  In that case, we will fall through here and the inChannel
+		//  will reject it below instead of delivering it.
+		if(alreadyLogged) return;
+		
 		InChannel in = inConnections.get(from);
 		if(in == null) {
-			in = new InChannel();
+			in = new InChannel(this);
 			inConnections.put(from, in);
 		}
 		
@@ -84,7 +89,7 @@ public class ReliableInOrderMsgLayer {
 	 */
 	public void RIOAckReceive(int from, byte[] msg) {
 		int seqNum = Integer.parseInt( Utility.byteArrayToString(msg) );
-		outConnections.get(from).gotACK(seqNum);
+		outConnections.get(from).gotACK(from,seqNum);
 	}
 
 	/**
@@ -98,12 +103,21 @@ public class ReliableInOrderMsgLayer {
 	 * @param payload
 	 *            The payload to be sent
 	 */
-	public void RIOSend(int destAddr, int protocol, byte[] payload) {
+	public void RIOSend(int destAddr, int protocol, byte[] payload) {		
 		OutChannel out = outConnections.get(destAddr);
 		if(out == null) {
 			out = new OutChannel(this, destAddr);
 			outConnections.put(destAddr, out);
 		}
+		
+		//log before sending.  Guarantees that the msg is always actively being re-sent, in the unACKd queue,
+		//  on the server.  We can recover from these logs upon recovery.  This will help us guarantee at-least-once 
+		//  semantics on the msg itself.  Note if a log file already exists for this from/seqNumber combination
+		//  we will not log it again.
+		
+		//NOTE: if we move to concurrency, will need to synchronize here on out channel to prevent TOC/TOU bug
+		// on next seq number.
+		MsgLogger.logMsg(destAddr, new String(payload), out.getNextSeqNum(), MsgLogger.SEND);
 		
 		out.sendRIOPacket(n, protocol, payload);
 	}
@@ -140,14 +154,17 @@ public class ReliableInOrderMsgLayer {
 class InChannel {
 	private int lastSeqNumDelivered;
 	private HashMap<Integer, RIOPacket> outOfOrderMsgs;
+	private ReliableInOrderMsgLayer parent;
 	
-	InChannel(){
+	InChannel(ReliableInOrderMsgLayer parent){
+		this.parent = parent;
 		lastSeqNumDelivered = -1;
 		outOfOrderMsgs = new HashMap<Integer, RIOPacket>();
 	}
 	
 
-	InChannel(int lsnd){
+	InChannel(ReliableInOrderMsgLayer parent, int lsnd){
+		this.parent = parent;
 		lastSeqNumDelivered = lsnd;
 		outOfOrderMsgs = new HashMap<Integer, RIOPacket>();
 	}
@@ -167,7 +184,7 @@ class InChannel {
 		if(seqNum == lastSeqNumDelivered + 1) {
 			// We were waiting for this packet
 			pktsToBeDelivered.add(pkt);
-			++lastSeqNumDelivered;
+			parent.snl.updateSeqSend(++lastSeqNumDelivered);
 			deliverSequence(pktsToBeDelivered);
 		}else if(seqNum > lastSeqNumDelivered + 1){
 			// We received a subsequent packet and should store it
@@ -189,6 +206,12 @@ class InChannel {
 			++lastSeqNumDelivered;
 			pktsToBeDelivered.add(outOfOrderMsgs.remove(lastSeqNumDelivered));
 		}
+		parent.snl.updateSeqSend(lastSeqNumDelivered);
+		
+	}
+	
+	public int currentSeqNumber(){
+		return this.lastSeqNumDelivered;
 	}
 	
 	@Override
@@ -213,6 +236,13 @@ class OutChannel {
 		this.destAddr = destAddr;
 	}
 	
+	OutChannel(ReliableInOrderMsgLayer parent, int destAddr, int lsn){
+		lastSeqNumSent = lsn;
+		unACKedPackets = new HashMap<Integer, RIOPacket>();
+		this.parent = parent;
+		this.destAddr = destAddr;
+	}
+	
 	/**
 	 * Send a new RIOPacket out on this channel.
 	 * 
@@ -225,8 +255,11 @@ class OutChannel {
 	 */
 	protected void sendRIOPacket(RIONode n, int protocol, byte[] payload) {
 		try{
+			parent.snl.updateSeqSend(++lastSeqNumSent);
+			
 			Method onTimeoutMethod = Callback.getMethod("onTimeout", parent, new String[]{ "java.lang.Integer", "java.lang.Integer" });
-			RIOPacket newPkt = new RIOPacket(protocol, ++lastSeqNumSent, payload);
+						
+			RIOPacket newPkt = new RIOPacket(protocol, lastSeqNumSent, payload);
 			unACKedPackets.put(lastSeqNumSent, newPkt);
 			
 			n.send(destAddr, Protocol.DATA, newPkt.pack());
@@ -234,6 +267,10 @@ class OutChannel {
 		}catch(Exception e) {
 			e.printStackTrace();
 		}
+	}
+	
+	protected int getNextSeqNum(){
+		return lastSeqNumSent + 1;
 	}
 	
 	/**
@@ -257,8 +294,13 @@ class OutChannel {
 	 * @param seqNum
 	 *            The sequence number that was just ACKed
 	 */
-	protected void gotACK(int seqNum) {
-		unACKedPackets.remove(seqNum);
+	protected void gotACK(int dest, int seqNum) {
+		//added a check here since now we might get multiple ACKS for safety
+		if(unACKedPackets.containsKey(seqNum)) unACKedPackets.remove(seqNum);
+		
+		//remove corresponding send log
+		MsgLogger.deleteLog(dest, seqNum, MsgLogger.SEND);
+		
 	}
 	
 	/**
