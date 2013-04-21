@@ -42,6 +42,7 @@ public class MsgLogger {
 		return alreadyLogged;		
 	}
 	
+	
 	public static void deleteLog(int from, int seqNum, int sendRecv){
 		String filename = getFilename(seqNum, from, sendRecv);
 		FS.delete(filename);
@@ -58,7 +59,7 @@ public class MsgLogger {
 			if(s.charAt(0) == delim){
 				String msg = FS.read(s);
 				int seqNum = Integer.parseInt(s.substring(1, s.indexOf(delim,1)));
-				int from = Integer.parseInt(s.substring(s.indexOf(delim,1),s.length()-4));
+				int from = Integer.parseInt(s.substring(s.indexOf(delim,1)+1,s.length()-4));
 				logs.add(new MsgLogEntry(msg, seqNum, from));
 			}
 		}
