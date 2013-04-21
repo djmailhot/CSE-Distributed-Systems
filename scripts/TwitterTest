@@ -1,0 +1,13 @@
+start 0
+start 1
+time
+0 create steph
+time
+0 login steph
+time
+0 tweet hello
+0 tweet this is fun
+0 readtweets
+time
+0 logout
+0 fake_command
