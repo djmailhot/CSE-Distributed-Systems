@@ -35,28 +35,24 @@ public class ReliableInOrderMsgLayer {
 		inConnections = new HashMap<Integer, InChannel>();
 		outConnections = new HashMap<Integer, OutChannel>();
 		this.n = n;
+		SeqLogEntries sle = SeqNumLogger.getSeqLog();		
 		
-		//see if we need to attempt recovery.  Recover if we do.
-		SeqLogEntries sle = SeqNumLogger.getSeqLog();
-		PriorityQueue<MsgLogEntry> sendLogs = MsgLogger.getLogs(MsgLogger.SEND);
-		PriorityQueue<MsgLogEntry> recvLogs = MsgLogger.getLogs(MsgLogger.RECV);
-		
-		//Recovering last recvd index:
+		//Recovering recvd/in side:
 		// If we have no recv log files, then the number in sle is correct since we finished processing the last msg and therefore set this properly.
 		// If we have recv log files but the number on this file is less than the min sequence number on all log files - 1, then this file is correct (we crashed with packets in out-of-order delivery queue, but this file has the correct number since we processed it successfully with the last delivery).
-		// If we have recv log files and this equals min sequence number of log files - 1, or min sequence number of log files, then set this to the min of the sequence number of log files since we are about to deliver them.
+		// If we have recv log files and this equals min sequence number of log files - 1, or min sequence number of log files, then set this to the min of the sequence number of log files - 1 since we are about to deliver them.
 		// If logs exist and its greater than all log values, then we have an error: we processed something out of order in an upper layer probably.
 		LinkedList<SeqLogEntries.AddrSeqPair> last_recvs = sle.seq_recv();
 		
 		for(SeqLogEntries.AddrSeqPair pair: last_recvs){
 			InChannel inC = new InChannel(pair.addr());
 			
-			
+			PriorityQueue<MsgLogEntry> recvLogs = MsgLogger.getChannelLogs(pair.addr(), MsgLogger.RECV);
 			int currentLast_recv = pair.seq();
 			if(!recvLogs.isEmpty()){
 				int minLogSeqNum = recvLogs.peek().seqNum();
-				if(currentLast_recv == minLogSeqNum-1 || currentLast_recv == minLogSeqNum) currentLast_recv = minLogSeqNum;
-				else{
+				if(currentLast_recv == minLogSeqNum-1 || currentLast_recv == minLogSeqNum) currentLast_recv = minLogSeqNum -1;
+				else if(currentLast_recv > minLogSeqNum){
 					throw new RuntimeException("RIOML constructor: Messages have been processed out of order.");
 				}
 				
@@ -72,8 +68,8 @@ public class ReliableInOrderMsgLayer {
 					// deliver in-order the next sequence of packets
 					n.onRIOReceive(pair.addr(), p.getProtocol(), p.getPayload());
 				}
-				
 			}
+			else inC.lastSeqNumDelivered = currentLast_recv;
 			
 			inConnections.put(pair.addr(), inC);
 		}
@@ -84,25 +80,35 @@ public class ReliableInOrderMsgLayer {
 		// We have one such index for each out channel, so we have (seq_num, destAddr) tuples.
 		// If version on file >= max of sequence numbers on log, take the version on file.  This means we successfully processed a message at least as high as the last one logged.
 		// If version on file < max sequence numbers on log, take the max sequence number on logs.  That means we logged but then crashed before updating the pointer.  In this case, just take the last one on the logs.  Logging happens first.
-
-		LinkedList<SeqLogEntries.DestSeqPair> last_sent = sle.seq_send();
+		LinkedList<SeqLogEntries.AddrSeqPair> last_sends = sle.seq_send();
 		
-		for(SeqLogEntries.DestSeqPair dsp: last_sent){
-			int maxLogSeqNum = -1;
+		for(SeqLogEntries.AddrSeqPair pair: last_sends){
+			OutChannel outC = new OutChannel(this, pair.addr());
+			PriorityQueue<MsgLogEntry> sendLogs = MsgLogger.getChannelLogs(pair.addr(), MsgLogger.SEND);
 			
+			int maxLogSeqNum = -1;
 			if(!sendLogs.isEmpty()){
 				for (MsgLogEntry e : sendLogs) maxLogSeqNum = Math.max(maxLogSeqNum,e.seqNum());
 			}
 			
-			if(last_sent < maxLogSeqNum) last_sent = maxLogSeqNum;
-		}
-		
-		
-		
-		//We need to recover state for the in channels and out channels for which we have logs.  Later, we will have to think about how to handle logging of
-		// last indices for multiple input/output channels.
-		
-		
+			if(pair.seq() < maxLogSeqNum) outC.lastSeqNumSent = maxLogSeqNum;
+			else outC.lastSeqNumSent = pair.seq();
+			
+			//these transactions were not ACKd and possibly not sent.  Add them to the resend cycles and unACKd queue.
+			for(MsgLogEntry mle: sendLogs){
+				try{					
+					Method onTimeoutMethod = Callback.getMethod("onTimeout", this, new String[]{ "java.lang.Integer", "java.lang.Integer" });
+								
+					RIOPacket newPkt = new RIOPacket(Protocol.DATA, mle.seqNum(), mle.msg().getBytes());
+					outC.unACKedPackets.put(mle.seqNum(), newPkt);
+					
+					n.send(pair.addr(), Protocol.DATA, newPkt.pack());
+					n.addTimeout(new Callback(onTimeoutMethod, this, new Object[]{ pair.addr(), mle.seqNum() }), ReliableInOrderMsgLayer.TIMEOUT);
+				}catch(Exception e) {
+					e.printStackTrace();
+				}
+			}
+		}	
 	}
 	
 	/**
@@ -291,7 +297,7 @@ class InChannel {
  * Representation of an outgoing channel from this node
  */
 class OutChannel {
-	private HashMap<Integer, RIOPacket> unACKedPackets;
+	protected HashMap<Integer, RIOPacket> unACKedPackets;
 	protected int lastSeqNumSent;
 	private ReliableInOrderMsgLayer parent;
 	private int destAddr;
