@@ -1,5 +1,7 @@
 import edu.washington.cs.cse490h.lib.Utility;
 
+import java.util.Date;
+import java.util.List;
 import java.util.logging.Logger;
 
 import org.json.JSONException;
@@ -66,6 +68,7 @@ public abstract class RPCNode extends RIONode {
   public JSONObject transactionCheck(String filename, Date date) {
     JSONObject t = newTransaction(NFSProcedure.CHECK, filename);
     t.put("date", date.toString());
+    return t;
   }
 
   /**
@@ -79,6 +82,7 @@ public abstract class RPCNode extends RIONode {
     JSONObject t = new JSONObject();
     t.put("procedure", procedure);
     t.put("filename", filename);
+    return t;
   }
 
 	//----------------------------------------------------------------------------

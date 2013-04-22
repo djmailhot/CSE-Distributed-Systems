@@ -1,3 +1,6 @@
+import org.json.JSONException;
+import org.json.JSONObject;
+
 
 
 /*
@@ -6,16 +9,9 @@
  * 
  * If this is a problem, it will be easy enough to split them apart again. 
  */
-// TODO: EVENTUALLY CHANGE TO  extends RPCCLIENTNODE
-public class TwitterNode extends RIONode {
+public class TwitterNode extends RPCNode {
 	private String username = null; 
 	
-	@Override
-	public void onRIOReceive(Integer from, int protocol, byte[] msg) {
-		// TODO Auto-generated method stub
-
-	}
-
 	@Override
 	public void start() {
 		// TODO Auto-generated method stub
@@ -90,11 +86,19 @@ public class TwitterNode extends RIONode {
 		// append users, user 
 		// create user_followers // those who are following this user
 		// create user_stream    // this user's unread tweets
+		JSONObject append = transactionAppend("users.txt", user);
+		JSONObject cfollowers = transactionCreate(user + "_followers.txt");
+		JSONObject cstream = transactionCreate(user + "_stream.txt");
+		// TODO how do I know the address?
+		RPCSend(?????, new ArrayList(Arrays.asList(append, cfollowers, cstream)));
 		System.out.println("Sucessfully created " + user + ".");
 	}
 	
 	public void login(String user) {
 		// CHECK_EXISTENCE of user_stream
+		JSONObject existance = transactionExist(user + "_stream.txt");
+		// TODO how do I know the address?
+		RPCSend(?????, existance);
 		boolean exists = true;
 		if (exists) {
 			username = user;
@@ -113,6 +117,9 @@ public class TwitterNode extends RIONode {
 	public void tweet(String tweet){
 		// send tweet to server
 		// READ the file user_followers
+		JSONObject read = transactionRead(username + "_followers.txt");
+		RPCSend(?????, read);
+		// TODO:
 		// for each follower in user_followers
 		//     APPEND tweet, follower_stream
 		System.out.println("You tweeted: " + tweet);
@@ -123,25 +130,46 @@ public class TwitterNode extends RIONode {
 		// READ username_stream
 		// DELETE username_stream // holds only unread tweets
 		// CREATE username_stream 
+		JSONObject read = transactionRead(username + "_stream.txt");
+		JSONObject delete = transactionDelete(username + "_stream.txt");
+		JSONObject create = transactionCreate(username + "_stream.txt");
+		// TODO how do I know the address?
+		RPCSend(?????, new ArrayList(Arrays.asList(read, delete, create)));
 		System.out.println("It would be cool if you could read tweets");
 	}
 	
 	public void follow(String followUserName) {
 		// tell server to follow followUserName
 		// APPEND username, followUserName_followers
+		JSONObject append = transactionAppend(followUserName + "_followers.txt", username);
+		RPCSend(?????, append);
 		System.out.println("You are now following " + followUserName + ".");
 	}
 	
 	public void unfollow(String unfollowUserName) {
 		// tell server to delete unfollowUserName from following
 		// DELETE_LINE username, unfollowUserName_followers
+		JSONObject delete = transactionDeleteLine(unfollowUserName + "_followers.txt", username);
+		RPCSend(?????, delete);
 		System.out.println("You are no longer following " + unfollowUserName + ".");
 	}
 	
 	public void block(String blockUserName) {
 		// tell server to delete username from blockUserName's following list
 		// DELETE_LINE blockUserName, username_followers
+		JSONObject delete = transactionDeleteLine(username + "_followers.txt", blockUserName);
+		RPCSend(?????, delete);
 		System.out.println(blockUserName + " is no longer following you.");
+	}
+
+	@Override
+	public void onRPCResponse(Integer from, JSONObject transaction)
+			throws JSONException {
+		// TODO Auto-generated method stub
+		
+		// TODO I need some way of being able to know what Twitter operation
+		// sent the RPC so I can handle the response data correctly...
+		
 	}
 
 }
