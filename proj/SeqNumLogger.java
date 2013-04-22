@@ -1,12 +1,23 @@
 import java.util.LinkedList;
 
-
+/* Logs the present last sequence number for the various in and out channels that are running 
+ * Uses file names as the persistent storage since we only need those few bytes for what we are doing.
+ * The actual files will be empty.
+ */
 public class SeqNumLogger {
+	/* Delimits this type of log */
 	private static final String delim = "$";
+	
+	/* Tells us if the current log is for a in or out channel */
 	public static final int SEND = 2;
 	public static final int RECV = 1;
 	
-	
+	/* Forms a log file name from the various parameters passed in.
+	 * if sencRecv == send, return param takes the form:
+	 * 		<delim><delim><addr><delim><seq>.log
+	 * else it takes the form:
+	 * 		<delim><addr><delim><seq>.log
+	 */
 	private static String buildFilename(int seq, int addr, int sendRecv){
 		String filename = delim;
 		if(sendRecv == SEND) filename = filename.concat(delim);
@@ -18,7 +29,11 @@ public class SeqNumLogger {
 		return filename;
 	}
 	
-	
+	/* Writes a new log file for a channel if we haven't seen it before, otherwise we update the existing one.
+	 * seq - same as the last sequence number
+	 * addr - the node address of the from/to of the channel
+	 * sendRecv - whether this is a sending or receiving channel
+	 */
 	public static void updateSeq(int seq, int addr, int sendRecv){
 		String filename = buildFilename(seq, addr, sendRecv);
 		LinkedList<String> fileNames = FS.getFileList();
@@ -39,7 +54,7 @@ public class SeqNumLogger {
 		if(!alreadyExists) FS.create(filename);
 	}
 	
-	
+	/* Gets all saved sequence numbers for all in and out channels. */
 	public static SeqLogEntries getSeqLog(){
 		int seq_recv = -1;
 		LinkedList<SeqLogEntries.AddrSeqPair> seq_sends = new LinkedList<SeqLogEntries.AddrSeqPair>();
