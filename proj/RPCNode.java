@@ -2,6 +2,7 @@ import edu.washington.cs.cse490h.lib.Utility;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 import java.util.logging.Logger;
 
 import org.json.JSONException;
@@ -56,16 +57,23 @@ public abstract class RPCNode extends RIONode {
 	//----------------------------------------------------------------------------
 
   /**
+   * Returns the UUID of the specified transaction.
+   */
+  public static UUID extractUUID(JSONObject transaction) {
+    return UUID.fromString(transaction.getString("uuid"));
+  }
+
+  /**
    * Create the specified file.
    */
-  public JSONObject transactionCreate(String filename) {
+  public static JSONObject transactionCreate(String filename) {
     return newTransaction(NFSProcedure.CREATE.ordinal(), filename);
   }
 
   /**
    * Read the specified file.
    */
-  public JSONObject transactionRead(String filename) {
+  public static JSONObject transactionRead(String filename) {
     return newTransaction(NFSProcedure.READ.ordinal(), filename);
   }
 
@@ -74,7 +82,7 @@ public abstract class RPCNode extends RIONode {
    * The string will be followed by a newline, such that repeated append
    * calls will be written to separate lines.
    */
-  public JSONObject transactionAppend(String filename, String data) {
+  public static JSONObject transactionAppend(String filename, String data) {
     JSONObject t = newTransaction(NFSProcedure.APPEND.ordinal(), filename);
     t.put("data", data);
     return t;
@@ -84,7 +92,7 @@ public abstract class RPCNode extends RIONode {
    * Check that the version of the specified file is not newer than the
    * specified date.
    */
-  public JSONObject transactionCheck(String filename, Date date) {
+  public static JSONObject transactionCheck(String filename, Date date) {
     JSONObject t = newTransaction(NFSProcedure.CHECK.ordinal(), filename);
     t.put("date", date.toString());
     return t;
@@ -93,15 +101,16 @@ public abstract class RPCNode extends RIONode {
   /**
    * Delete the specified file.
    */
-  public JSONObject transactionDelete(String filename) {
+  public static JSONObject transactionDelete(String filename) {
     return newTransaction(NFSProcedure.DELETE.ordinal(), filename);
   }
 
-  private JSONObject newTransaction(int procedure, String filename) {
+  private static JSONObject newTransaction(int procedure, String filename) {
     JSONObject t = new JSONObject();
     t.put("procedure", procedure);
     t.put("messageType", MessageType.REQUEST.ordinal());
     t.put("filename", filename);
+    t.put("uuid", UUID.randomUUID());
     return t;
   }
 
@@ -117,7 +126,7 @@ public abstract class RPCNode extends RIONode {
 	 * @param transaction
 	 *            The transaction to send
 	 */
-  public void RPCSend(int destAddr, JSONObject transaction) {
+  public RPCSend(int destAddr, JSONObject transaction) {
     byte[] payload = Utility.stringToByteArray(transaction.toString());
     RIOSend(destAddr, Protocol.DATA, payload);
   }
@@ -130,7 +139,7 @@ public abstract class RPCNode extends RIONode {
 	 * @param bundle
 	 *            The bundle of transactions to send
 	 */
-  public void RPCSend(int destAddr, List<JSONObject> bundle) {
+  public List<UUID> RPCSend(int destAddr, List<JSONObject> bundle) {
     for(JSONObject transaction : bundle) {
       RPCSend(destAddr, transaction);
     }
