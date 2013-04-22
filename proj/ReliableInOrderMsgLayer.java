@@ -20,6 +20,8 @@ public class ReliableInOrderMsgLayer {
 	private HashMap<Integer, InChannel> inConnections;
 	private HashMap<Integer, OutChannel> outConnections;
 	private RIONode n;
+	private MsgLogger msl;
+	private SeqNumLogger snl;
 
 	/**
 	 * Constructor.
@@ -35,7 +37,10 @@ public class ReliableInOrderMsgLayer {
 		inConnections = new HashMap<Integer, InChannel>();
 		outConnections = new HashMap<Integer, OutChannel>();
 		this.n = n;
-		SeqLogEntries sle = SeqNumLogger.getSeqLog();		
+		this.msl = new MsgLogger(n);
+		this.snl = new SeqNumLogger(n);
+		
+		SeqLogEntries sle = this.snl.getSeqLog();		
 		
 		//Recovering recvd/in side:
 		// If we have no recv log files, then the number in sle is correct since we finished processing the last msg and therefore set this properly.
@@ -45,9 +50,9 @@ public class ReliableInOrderMsgLayer {
 		LinkedList<SeqLogEntries.AddrSeqPair> last_recvs = sle.seq_recv();
 		
 		for(SeqLogEntries.AddrSeqPair pair: last_recvs){
-			InChannel inC = new InChannel(pair.addr());
+			InChannel inC = new InChannel(this.snl, pair.addr());
 			
-			PriorityQueue<MsgLogEntry> recvLogs = MsgLogger.getChannelLogs(pair.addr(), MsgLogger.RECV);
+			PriorityQueue<MsgLogEntry> recvLogs = this.msl.getChannelLogs(pair.addr(), MsgLogger.RECV);
 			int currentLast_recv = pair.seq();
 			if(!recvLogs.isEmpty()){
 				int minLogSeqNum = recvLogs.peek().seqNum();
@@ -83,8 +88,8 @@ public class ReliableInOrderMsgLayer {
 		LinkedList<SeqLogEntries.AddrSeqPair> last_sends = sle.seq_send();
 		
 		for(SeqLogEntries.AddrSeqPair pair: last_sends){
-			OutChannel outC = new OutChannel(this, pair.addr());
-			PriorityQueue<MsgLogEntry> sendLogs = MsgLogger.getChannelLogs(pair.addr(), MsgLogger.SEND);
+			OutChannel outC = new OutChannel(this.snl, this.msl, this, pair.addr());
+			PriorityQueue<MsgLogEntry> sendLogs = this.msl.getChannelLogs(pair.addr(), MsgLogger.SEND);
 			
 			int maxLogSeqNum = -1;
 			if(!sendLogs.isEmpty()){
@@ -125,7 +130,7 @@ public class ReliableInOrderMsgLayer {
 		//  the msg itself.  Note if a log file already exists for this from/seqNumber combination
 		//  we will not log it again.
 		RIOPacket riopkt = RIOPacket.unpack(msg);
-		boolean alreadyLogged = MsgLogger.logMsg(from, new String(msg), riopkt.getSeqNum(), MsgLogger.RECV);		
+		boolean alreadyLogged = this.msl.logMsg(from, new String(msg), riopkt.getSeqNum(), MsgLogger.RECV);		
 		
 		
 					
@@ -141,7 +146,7 @@ public class ReliableInOrderMsgLayer {
 		
 		InChannel in = inConnections.get(from);
 		if(in == null) {
-			in = new InChannel(from);
+			in = new InChannel(this.snl, from);
 			inConnections.put(from, in);
 		}
 		
@@ -179,7 +184,7 @@ public class ReliableInOrderMsgLayer {
 	public void RIOSend(int destAddr, int protocol, byte[] payload) {		
 		OutChannel out = outConnections.get(destAddr);
 		if(out == null) {
-			out = new OutChannel(this, destAddr);
+			out = new OutChannel(this.snl, this.msl, this, destAddr);
 			outConnections.put(destAddr, out);
 		}
 		
@@ -190,7 +195,7 @@ public class ReliableInOrderMsgLayer {
 		
 		//NOTE: if we move to concurrency, will need to synchronize here on out channel to prevent TOC/TOU bug
 		// on next seq number.
-		MsgLogger.logMsg(destAddr, new String(payload), out.getNextSeqNum(), MsgLogger.SEND);
+		this.msl.logMsg(destAddr, new String(payload), out.getNextSeqNum(), MsgLogger.SEND);
 		
 		out.sendRIOPacket(n, protocol, payload);
 	}
@@ -227,18 +232,21 @@ public class ReliableInOrderMsgLayer {
 class InChannel {
 	protected int lastSeqNumDelivered;
 	private int fromAddr;
+	private SeqNumLogger snl;
 	protected HashMap<Integer, RIOPacket> outOfOrderMsgs;
 	
-	InChannel(int fromAddr){
+	InChannel(SeqNumLogger snl, int fromAddr){
 		lastSeqNumDelivered = -1;
+		this.snl = snl;
 		this.fromAddr = fromAddr;
 		outOfOrderMsgs = new HashMap<Integer, RIOPacket>();
 	}
 	
 
-	InChannel(int fromAddr, int lsnd){
+	InChannel(SeqNumLogger snl, int fromAddr, int lsnd){
 		lastSeqNumDelivered = lsnd;
 		this.fromAddr = fromAddr;
+		this.snl = snl;
 		outOfOrderMsgs = new HashMap<Integer, RIOPacket>();
 	}
 
@@ -257,7 +265,7 @@ class InChannel {
 		if(seqNum == lastSeqNumDelivered + 1) {
 			// We were waiting for this packet
 			pktsToBeDelivered.add(pkt);
-			SeqNumLogger.updateSeq(++lastSeqNumDelivered, this.fromAddr, SeqNumLogger.RECV);
+			this.snl.updateSeq(++lastSeqNumDelivered, this.fromAddr, SeqNumLogger.RECV);
 			deliverSequence(pktsToBeDelivered);
 		}else if(seqNum > lastSeqNumDelivered + 1){
 			// We received a subsequent packet and should store it
@@ -279,7 +287,7 @@ class InChannel {
 			++lastSeqNumDelivered;
 			pktsToBeDelivered.add(outOfOrderMsgs.remove(lastSeqNumDelivered));
 		}
-		SeqNumLogger.updateSeq(lastSeqNumDelivered, this.fromAddr, SeqNumLogger.RECV);
+		this.snl.updateSeq(lastSeqNumDelivered, this.fromAddr, SeqNumLogger.RECV);
 		
 	}
 	
@@ -301,16 +309,22 @@ class OutChannel {
 	protected int lastSeqNumSent;
 	private ReliableInOrderMsgLayer parent;
 	private int destAddr;
+	private SeqNumLogger snl;
+	private MsgLogger msl;
 	
-	OutChannel(ReliableInOrderMsgLayer parent, int destAddr){
+	OutChannel(SeqNumLogger snl, MsgLogger msl, ReliableInOrderMsgLayer parent, int destAddr){
 		lastSeqNumSent = -1;
+		this.snl = snl;
+		this.msl = msl;
 		unACKedPackets = new HashMap<Integer, RIOPacket>();
 		this.parent = parent;
 		this.destAddr = destAddr;
 	}
 	
-	OutChannel(ReliableInOrderMsgLayer parent, int destAddr, int lsn){
+	OutChannel(SeqNumLogger snl, MsgLogger msl, ReliableInOrderMsgLayer parent, int destAddr, int lsn){
 		lastSeqNumSent = lsn;
+		this.snl = snl;
+		this.msl = msl;
 		unACKedPackets = new HashMap<Integer, RIOPacket>();
 		this.parent = parent;
 		this.destAddr = destAddr;
@@ -328,7 +342,7 @@ class OutChannel {
 	 */
 	protected void sendRIOPacket(RIONode n, int protocol, byte[] payload) {
 		try{
-			SeqNumLogger.updateSeq(++lastSeqNumSent, this.destAddr, SeqNumLogger.SEND);
+			this.snl.updateSeq(++lastSeqNumSent, this.destAddr, SeqNumLogger.SEND);
 			
 			Method onTimeoutMethod = Callback.getMethod("onTimeout", parent, new String[]{ "java.lang.Integer", "java.lang.Integer" });
 						
@@ -372,7 +386,7 @@ class OutChannel {
 		if(unACKedPackets.containsKey(seqNum)) unACKedPackets.remove(seqNum);
 		
 		//remove corresponding send log
-		MsgLogger.deleteLog(dest, seqNum, MsgLogger.SEND);
+		this.msl.deleteLog(dest, seqNum, MsgLogger.SEND);
 		
 	}
 	

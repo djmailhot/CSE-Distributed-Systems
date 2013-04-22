@@ -1,4 +1,5 @@
 import java.util.LinkedList;
+import edu.washington.cs.cse490h.lib.Node;
 
 /* Logs the present last sequence number for the various in and out channels that are running 
  * Uses file names as the persistent storage since we only need those few bytes for what we are doing.
@@ -8,9 +9,20 @@ public class SeqNumLogger {
 	/* Delimits this type of log */
 	private static final String delim = "$";
 	
+	/* Used to make a file system */
+	private Node node;
+	
+	/* The file system */
+	private NFSService FS;
+	
 	/* Tells us if the current log is for a in or out channel */
 	public static final int SEND = 2;
 	public static final int RECV = 1;
+	
+	public SeqNumLogger(Node node){
+		this.node = node;
+		FS = new NFSService(node);
+	}
 	
 	/* Forms a log file name from the various parameters passed in.
 	 * if sencRecv == send, return param takes the form:
@@ -18,7 +30,7 @@ public class SeqNumLogger {
 	 * else it takes the form:
 	 * 		<delim><addr><delim><seq>.log
 	 */
-	private static String buildFilename(int seq, int addr, int sendRecv){
+	private String buildFilename(int seq, int addr, int sendRecv){
 		String filename = delim;
 		if(sendRecv == SEND) filename = filename.concat(delim);
 		filename = filename.concat(Integer.toString(addr));
@@ -34,7 +46,7 @@ public class SeqNumLogger {
 	 * addr - the node address of the from/to of the channel
 	 * sendRecv - whether this is a sending or receiving channel
 	 */
-	public static void updateSeq(int seq, int addr, int sendRecv){
+	public void updateSeq(int seq, int addr, int sendRecv){
 		String filename = buildFilename(seq, addr, sendRecv);
 		LinkedList<String> fileNames = FS.getFileList();
 		
@@ -55,7 +67,7 @@ public class SeqNumLogger {
 	}
 	
 	/* Gets all saved sequence numbers for all in and out channels. */
-	public static SeqLogEntries getSeqLog(){
+	public SeqLogEntries getSeqLog(){
 		int seq_recv = -1;
 		LinkedList<SeqLogEntries.AddrSeqPair> seq_sends = new LinkedList<SeqLogEntries.AddrSeqPair>();
 		LinkedList<SeqLogEntries.AddrSeqPair> seq_recvs = new LinkedList<SeqLogEntries.AddrSeqPair>();
