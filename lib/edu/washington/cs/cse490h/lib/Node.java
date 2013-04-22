@@ -190,7 +190,7 @@ public abstract class Node {
 	}
 
 	/**
-	 * Gets a PersistentStorageRInputStream object for the filename specified.
+	 * Gets a PersistentStorageInputStream object for the filename specified.
 	 * 
 	 * @param filename
 	 *            The file to open for reading
