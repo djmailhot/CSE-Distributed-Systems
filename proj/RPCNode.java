@@ -23,6 +23,14 @@ public abstract class RPCNode extends RIONode {
    */
   private enum MessageType {
     REQUEST, RESPONSE;
+
+    public static NFSProcedure parseInt(int value) {
+      switch(value) {
+        case REQUEST.ordinal(): return REQUEST;
+        case RESPONSE.ordinal(): return RESPONSE;
+        default: return null;
+      }
+    }
   }
 
   /**
@@ -30,6 +38,17 @@ public abstract class RPCNode extends RIONode {
    */
   private enum NFSProcedure {
     CREATE, READ, APPEND, CHECK, DELETE;
+
+    public static NFSProcedure parseInt(int value) {
+      switch(value) {
+        case CREATE.ordinal(): return CREATE;
+        case READ.ordinal(): return READ;
+        case APPEND.ordinal(): return APPEND;
+        case CHECK.ordinal(): return CHECK;
+        case DELETE.ordinal(): return DELETE;
+        default: return null;
+      }
+    }
   }
 
 	//----------------------------------------------------------------------------
@@ -40,14 +59,14 @@ public abstract class RPCNode extends RIONode {
    * Create the specified file.
    */
   public JSONObject transactionCreate(String filename) {
-    return newTransaction(NFSProcedure.CREATE, filename);
+    return newTransaction(NFSProcedure.CREATE.ordinal(), filename);
   }
 
   /**
    * Read the specified file.
    */
   public JSONObject transactionRead(String filename) {
-    return newTransaction(NFSProcedure.READ, filename);
+    return newTransaction(NFSProcedure.READ.ordinal(), filename);
   }
 
   /**
@@ -56,7 +75,7 @@ public abstract class RPCNode extends RIONode {
    * calls will be written to separate lines.
    */
   public JSONObject transactionAppend(String filename, String data) {
-    JSONObject t = newTransaction(NFSProcedure.APPEND, filename);
+    JSONObject t = newTransaction(NFSProcedure.APPEND.ordinal(), filename);
     t.put("data", data);
     return t;
   }
@@ -66,7 +85,7 @@ public abstract class RPCNode extends RIONode {
    * specified date.
    */
   public JSONObject transactionCheck(String filename, Date date) {
-    JSONObject t = newTransaction(NFSProcedure.CHECK, filename);
+    JSONObject t = newTransaction(NFSProcedure.CHECK.ordinal(), filename);
     t.put("date", date.toString());
     return t;
   }
@@ -75,12 +94,13 @@ public abstract class RPCNode extends RIONode {
    * Delete the specified file.
    */
   public JSONObject transactionDelete(String filename) {
-    return newTransaction(NFSProcedure.DELETE, filename);
+    return newTransaction(NFSProcedure.DELETE.ordinal(), filename);
   }
 
   private JSONObject newTransaction(int procedure, String filename) {
     JSONObject t = new JSONObject();
     t.put("procedure", procedure);
+    t.put("messageType", MessageType.REQUEST.ordinal());
     t.put("filename", filename);
     return t;
   }
@@ -139,17 +159,17 @@ public abstract class RPCNode extends RIONode {
         JSONObject transaction = new JSONObject(payload);
         int messageType = transaction.getInt("messageType");
 
-        switch (messageType) {
-          case MessageType.REQUEST:
+        switch (MessageType.parseInt(messageType)) {
+          case REQUEST:
             onRPCRequest(from, transaction);
             break;
-          case MessageType.RESPONSE:
+          case RESPONSE:
             onRPCResponse(from, transaction);
             break;
           default:
             LOG.warn("Received invalid message type");
         }
-      catch(JSONException e) {
+      } catch(JSONException e) {
         LOG.warn("RPC data message could not be parsed");
       }
     } else {
@@ -173,12 +193,12 @@ public abstract class RPCNode extends RIONode {
     String filename = message.getString("filename");
 
     // TODO:  link these to the NFSService
-    switch (procedure) {
-      case NFSProcedure.CREATE:
-      case NFSProcedure.READ:
-      case NFSProcedure.APPEND:
-      case NFSProcedure.CHECK:
-      case NFSProcedure.DELETE:
+    switch (NFSProcedure.parseInt(procedure)) {
+      case CREATE:
+      case READ:
+      case APPEND:
+      case CHECK:
+      case DELETE:
       default:
         LOG.warn("Received invalid procedure type");
     }
