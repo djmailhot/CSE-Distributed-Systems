@@ -3,68 +3,67 @@ import java.util.LinkedList;
 
 public class SeqNumLogger {
 	private static final String delim = "$";
-	private int last_send;
-	private int last_recv;
+	public static final int SEND = 2;
+	public static final int RECV = 1;
 	
-	public SeqNumLogger(){
-		LinkedList<String> fileNames = FS.getFileList();
-		
-		// iterate all files in directory until we hit the one starting with delim (should be no more than one!)
-		boolean alreadyExists = false;
-		for(String s : fileNames){
-			if(s.charAt(0) == delim.charAt(0)){
-				this.last_send = Integer.parseInt(s.substring(1, s.indexOf(delim,1)));
-				this.last_recv = Integer.parseInt(s.substring(s.indexOf(delim,1),s.length()-4));
-				alreadyExists = true;
-			}
-		}
-		
-		if(!alreadyExists){
-			this.last_send = -1;
-			this.last_recv = -1;
-		}
-	}
 	
-	private static String getFilename(int seq_send, int seq_recv){
+	private static String buildFilename(int seq, int addr, int sendRecv){
 		String filename = delim;
-		filename = filename.concat(Integer.toString(seq_send));
+		if(sendRecv == SEND) filename = filename.concat(delim);
+		filename = filename.concat(Integer.toString(addr));
 		filename = filename.concat(delim);
-		filename = filename.concat(Integer.toString(seq_recv));
+		filename = filename.concat(Integer.toString(seq));
 		filename = filename.concat(".log");
+		
 		return filename;
 	}
 	
-	public void updateSeqSend(int seq_send){
-		String filename = getFilename(seq_send, this.last_recv);
-		updateLogFile(filename);
-	}
 	
-	public void updateSeqRecv(int seq_recv){
-		String filename = getFilename(this.last_send, seq_recv);
-		updateLogFile(filename);
-	}
-	
-	private void updateLogFile(String filename){
+	public static void updateSeq(int seq, int addr, int sendRecv){
+		String filename = buildFilename(seq, addr, sendRecv);
 		LinkedList<String> fileNames = FS.getFileList();
 		
-		// iterate all files in directory until we hit the one starting with delim (should be no more than one!)
+		// iterate all files in directory until we hit the seq num logs
 		boolean alreadyExists = false;
 		for(String s : fileNames){
-			if(s.charAt(0) == delim.charAt(0)){
-				FS.rename(s,filename);
-				alreadyExists = true;
+			if(s.charAt(0) == delim.charAt(0) && ((s.charAt(1) == delim.charAt(0) && sendRecv == SEND) || (s.charAt(1) != delim.charAt(0) && sendRecv == RECV))){
+				int currentAddr = Integer.parseInt(s.substring(sendRecv, s.indexOf("$", sendRecv)));
+				if(currentAddr == addr){
+					FS.rename(s,filename);
+					alreadyExists = true;
+					break;
+				}
 			}
 		}
 		
 		if(!alreadyExists) FS.create(filename);
 	}
 	
-	// will return null if the log was never set
-	public SeqLogEntry getSeqLog(){
-		if(this.last_recv==-1 && this.last_send==-1) return null;
-		else{
-			return new SeqLogEntry(this.last_send, this.last_recv);
+	
+	public static SeqLogEntries getSeqLog(){
+		int seq_recv = -1;
+		LinkedList<SeqLogEntries.AddrSeqPair> seq_sends = new LinkedList<SeqLogEntries.AddrSeqPair>();
+		LinkedList<SeqLogEntries.AddrSeqPair> seq_recvs = new LinkedList<SeqLogEntries.AddrSeqPair>();
+		LinkedList<String> fileNames = FS.getFileList();
+		
+		// iterate all files in directory until we hit the ones starting with delim
+		for(String s : fileNames){
+			if(s.charAt(0) == delim.charAt(0)){
+				if(s.charAt(1) == delim.charAt(0)){
+					int currentAddr = Integer.parseInt(s.substring(2, s.indexOf("$", 2)));
+					int currentSeq = Integer.parseInt(s.substring(s.indexOf("$", 2)+1,s.length()-4));
+					seq_sends.add(new SeqLogEntries.AddrSeqPair(currentAddr,currentSeq));
+				}
+				else{
+					int currentAddr = Integer.parseInt(s.substring(1, s.indexOf("$", 1)));
+					int currentSeq = Integer.parseInt(s.substring(s.indexOf("$", 1)+1,s.length()-4));
+					seq_recvs.add(new SeqLogEntries.AddrSeqPair(currentAddr,currentSeq));
+				}
+			}
 		}
+		
+		return new SeqLogEntries(seq_sends, seq_recvs);
+		
 	}
 
 }

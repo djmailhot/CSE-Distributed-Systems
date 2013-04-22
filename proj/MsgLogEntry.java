@@ -4,12 +4,12 @@
 public class MsgLogEntry implements Comparable<MsgLogEntry> {
 	private final int seqNum;
 	private final String msg;
-	private final int from;
+	private final int addr;
 	
-	public MsgLogEntry(String msg, int seqNum, int from){
+	public MsgLogEntry(String msg, int seqNum, int addr){
 		this.seqNum = seqNum;
 		this.msg = msg;
-		this.from = from;
+		this.addr = addr;
 	}
 	
 	public int seqNum(){
@@ -21,7 +21,7 @@ public class MsgLogEntry implements Comparable<MsgLogEntry> {
 	}
 	
 	public int from(){
-		return this.from;
+		return this.addr;
 	}
 
 	/* Gives a total ordering of logs by sequence number.
