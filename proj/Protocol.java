@@ -44,7 +44,8 @@ public class Protocol {
 	 * @return True if protocol is valid, else false
 	 */
 	public static boolean isRIOProtocolValid(int protocol) {
-		return (protocol == VOTEREQ_PKT || protocol == VOTE_PKT
+		return (protocol == DATA || protocol == ACK || // TODO: TAKE THESE OUT!!
+				protocol == VOTEREQ_PKT || protocol == VOTE_PKT
 				|| protocol == DECISION_PKT || protocol == DECISIONREQ_PKT || protocol == RIOTEST_PKT);
 	}
 

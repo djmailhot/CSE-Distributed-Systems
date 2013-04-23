@@ -19,7 +19,7 @@ import plume.Pair;
  * If this is a problem, it will be easy enough to split them apart again. 
  */
 public class TwitterNode extends RPCNode {
-	private String username = null; 
+	private String username = "temp";  // TODO: change back to null
 	private int DEST_ADDR = addr == 0? 1 : 0; // Copied from TwoGenerals.java
 	
 	
