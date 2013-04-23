@@ -188,7 +188,7 @@ public abstract class RPCNode extends RIONode {
   }
 
   public static JSONObject transactionDeleteLine(String filename, String data) {
-    return new JSONObject();
+    return new JSONObject(); // TODO: this should be non-empty!!!
   }
 
   public static JSONObject transactionExist(String filename) {
@@ -208,7 +208,7 @@ public abstract class RPCNode extends RIONode {
     t.put("operation", operation);
     t.put("messageType", MessageType.REQUEST.ordinal());
     t.put("filename", filename);
-    t.put("uuid", UUID.randomUUID());
+    t.put("uuid", UUID.randomUUID().toString());
     return t;
   }
 
@@ -348,7 +348,8 @@ public abstract class RPCNode extends RIONode {
     response.put("uuid", uuid.toString());
     response.put("messageType", MessageType.RESPONSE.ordinal());
     response.put("filename", request.getString("filename"));
-    response.put("operation", request.getString("operation"));
+    response.put("operation", request.getInt("operation")); // TODO!!! this is not actually a string.
+
     return response;
   }
 
