@@ -20,7 +20,7 @@ import plume.Pair;
  */
 public class TwitterNode extends RPCNode {
 	private String username = null; 
-	private int TEMP_TO_ADDRESS = 0; // NOT SURE HOW TO KNOW THE DESTINATION ADDRESS
+	private int DEST_ADDR = addr == 0? 1 : 0; // Copied from TwoGenerals.java
 	
 	
 	public TwitterNode() {
@@ -154,7 +154,7 @@ public class TwitterNode extends RPCNode {
 		JSONObject cfollowers = transactionCreate(user + "_followers.txt");
 		JSONObject cstream = transactionCreate(user + "_stream.txt");
 		// TODO how do I know the address?
-		List<UUID> uuids = RPCSend(TEMP_TO_ADDRESS, new ArrayList<JSONObject>(Arrays.asList(append, cfollowers, cstream)));
+		List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(append, cfollowers, cstream)));
 		mapUUIDs(uuids, TwitterOp.CREATE, user);
 		System.out.println("create user RPC sent");
 	}
@@ -163,7 +163,7 @@ public class TwitterNode extends RPCNode {
 		// CHECK_EXISTENCE of user_followers.txt
 		JSONObject existance = transactionExist(user + "_followers.txt");
 		// TODO how do I know the address?
-		List<UUID> uuids = RPCSend(TEMP_TO_ADDRESS, new ArrayList<JSONObject>(Arrays.asList(existance)));
+		List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(existance)));
 		mapUUIDs(uuids, TwitterOp.LOGIN, user);
 	}
 	
@@ -176,7 +176,7 @@ public class TwitterNode extends RPCNode {
 		// send tweet to server
 		// READ the file user_followers
 		JSONObject read = transactionRead(username + "_followers.txt");
-		List<UUID> uuids = RPCSend(TEMP_TO_ADDRESS, new ArrayList<JSONObject>(Arrays.asList(read)));
+		List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(read)));
 		mapUUIDs(uuids, TwitterOp.TWEET, tweet);
 		System.out.println("read followers RPC sent");
 	}
@@ -188,7 +188,7 @@ public class TwitterNode extends RPCNode {
 		JSONObject read = transactionRead(username + "_stream.txt");
 		JSONObject delete = transactionDelete(username + "_stream.txt");
 		// TODO how do I know the address?
-		List<UUID> uuids = RPCSend(TEMP_TO_ADDRESS, new ArrayList<JSONObject>(Arrays.asList(read, delete)));
+		List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(read, delete)));
 		mapUUIDs(uuids, TwitterOp.READTWEETS, null);
 		System.out.println("read tweets RPC sent");
 	}
@@ -197,7 +197,7 @@ public class TwitterNode extends RPCNode {
 		// tell server to follow followUserName
 		// APPEND username, followUserName_followers
 		JSONObject append = transactionAppend(followUserName + "_followers.txt", username);
-		List<UUID> uuids = RPCSend(TEMP_TO_ADDRESS, new ArrayList<JSONObject>(Arrays.asList(append)));
+		List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(append)));
 		mapUUIDs(uuids, TwitterOp.FOLLOW, followUserName);
 		System.out.println("follow append RPC sent");
 	}
@@ -206,7 +206,7 @@ public class TwitterNode extends RPCNode {
 		// tell server to delete unfollowUserName from following
 		// DELETE_LINE username, unfollowUserName_followers
 		JSONObject delete = transactionDeleteLine(unfollowUserName + "_followers.txt", username);
-		List<UUID> uuids = RPCSend(TEMP_TO_ADDRESS, new ArrayList<JSONObject>(Arrays.asList(delete)));
+		List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(delete)));
 		mapUUIDs(uuids, TwitterOp.UNFOLLOW, unfollowUserName);
 		System.out.println("unfollow delete RPC sent");
 	}
@@ -215,7 +215,7 @@ public class TwitterNode extends RPCNode {
 		// tell server to delete username from blockUserName's following list
 		// DELETE_LINE blockUserName, username_followers
 		JSONObject delete = transactionDeleteLine(username + "_followers.txt", blockUserName);
-		List<UUID> uuids = RPCSend(TEMP_TO_ADDRESS, new ArrayList<JSONObject>(Arrays.asList(delete)));
+		List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(delete)));
 		mapUUIDs(uuids, TwitterOp.BLOCK, blockUserName);
 		System.out.println("block delete RPC sent");
 	}
@@ -294,7 +294,7 @@ public class TwitterNode extends RPCNode {
 					JSONObject append = transactionAppend(follower + "_stream.txt", username + ": " + extraInfo);
 					appends.add(append);
 				}
-				List<UUID> uuids = RPCSend(TEMP_TO_ADDRESS, appends);
+				List<UUID> uuids = RPCSend(DEST_ADDR, appends);
 				mapUUIDs(uuids, TwitterOp.TWEET, extraInfo);
 			} else { // We heard back from a tweet append. Check if all the appends are back.
 				List<UUID> transactionuuids = transactionsmap.remove(uuid);
