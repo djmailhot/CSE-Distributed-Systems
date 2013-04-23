@@ -80,6 +80,10 @@ public class Utility {
         }
     }
 
+    public static File getFileHandle(Node n, String filename) {
+        return new File(realFilename(n.addr, filename));
+    }
+
     public static boolean fileExists(Node n, String filename) {
         File f = new File(realFilename(n.addr, filename));
         return f.exists();

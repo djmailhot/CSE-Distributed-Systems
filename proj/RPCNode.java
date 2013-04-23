@@ -299,7 +299,7 @@ public abstract class RPCNode extends RIONode {
           nfsService.append(filename, appendData);
           break;
         case CHECK:
-          long time = transaction.getLong("date")
+          long time = transaction.getLong("date");
           Date date = new Date(time);
           boolean check = nfsService.check(filename, date);
           response.put("date", time);
