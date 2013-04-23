@@ -69,8 +69,9 @@ public class NFSService {
    */
   public void write(String filename, String data) throws IOException {
     PersistentStorageWriter writer;
-    writer = node.getWriter(filename, true);
+    writer = node.getWriter(filename, false);
     writer.delete();
+    writer = node.getWriter(filename, false);
     writer.write(data);
     writer.close();
   }

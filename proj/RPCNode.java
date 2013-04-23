@@ -53,6 +53,7 @@ public abstract class RPCNode extends RIONode {
   }
 
   public RPCNode() {
+    super();
     this.nfsService = new NFSService(this);
   }
 
