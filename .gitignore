@@ -4,6 +4,9 @@
 # ignore temporary emacs files
 *~
 
+# ignore temporary vim files
+*.swp
+
 # log and replay files
 *.log
 *.replay
