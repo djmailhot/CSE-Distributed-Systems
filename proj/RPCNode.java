@@ -40,7 +40,7 @@ public abstract class RPCNode extends RIONode {
    * Enum to specify the RPC operation name.
    */
   public static enum NFSOperation {
-    CREATE, READ, APPEND, CHECK, DELETE;
+    CREATE, READ, APPEND, CHECK, DELETE, EXISTS;
 
     public static NFSOperation fromInt(int value) {
       if(value == CREATE.ordinal()) { return CREATE; }
@@ -48,6 +48,7 @@ public abstract class RPCNode extends RIONode {
       else if(value == APPEND.ordinal()) { return APPEND; }
       else if(value == CHECK.ordinal()) { return CHECK; }
       else if(value == DELETE.ordinal()) { return DELETE; }
+      else if(value == EXISTS.ordinal()) { return EXISTS; }
       else { return null; }
     }
   }
@@ -191,7 +192,14 @@ public abstract class RPCNode extends RIONode {
   }
 
   public static JSONObject transactionExist(String filename) {
-    return new JSONObject();
+    JSONObject transaction = null;
+    try {
+      transaction = newTransaction(NFSOperation.EXISTS.ordinal(), filename);
+    } catch(JSONException e) {
+      LOG.warning("JSON parsing error for RPC transaction");
+      e.printStackTrace();
+    }
+    return transaction;
   }
 
   private static JSONObject newTransaction(int operation, String filename)
@@ -317,6 +325,10 @@ public abstract class RPCNode extends RIONode {
         case DELETE:
           nfsService.delete(filename);
           break;
+        case EXISTS:
+          boolean exists = nfsService.exists(filename);
+          response.put("exists", exists);
+          break;
         default:
           LOG.warning("Received invalid operation type");
       }
@@ -363,6 +375,8 @@ public abstract class RPCNode extends RIONode {
    *   long "date" - the long representation of a Date object
    *   Boolean "check" - true if the file version is no newer than the
    *                     accompanying Date
+   * if("messageType" -> MessageType.EXISTS)
+   *   Boolean "exists" - true if the specified file exists
    *
 	 */
   public abstract void onRPCResponse(Integer from, JSONObject transaction);
