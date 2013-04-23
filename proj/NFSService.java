@@ -15,6 +15,7 @@ import java.util.List;
  * of a particular node.
  */
 public class NFSService {
+  private static final String TEMP_FILE_SUFFIX = ".tmp";
 
   private final Node node;
 
@@ -66,14 +67,16 @@ public class NFSService {
    *
    * If the file does not exist, creates a new one and writes;
    * If the file does exist, overwrites the contents;
+   *
+   * @return true if the write was successful
    */
-  public void write(String filename, String data) throws IOException {
+  public boolean write(String filename, String data) throws IOException {
+    String tempfile = filename + TEMP_FILE_SUFFIX;
     PersistentStorageWriter writer;
-    writer = node.getWriter(filename, false);
-    writer.delete();
-    writer = node.getWriter(filename, false);
+    writer = node.getWriter(tempfile, false);
     writer.write(data);
     writer.close();
+    return commitTempFile(tempfile, filename);
   }
 
   /**
@@ -115,20 +118,17 @@ public class NFSService {
    *
    * The string will be followed by a newline, such that repeated append
    * calls will be written to separate lines.
+   *
+   * @return true if the append was successful
    */
-  public void append(String filename, String data) throws IOException {
+  public boolean append(String filename, String data) throws IOException {
+    String tempfile = copyTempFile(filename);
     PersistentStorageWriter writer;
-    writer = node.getWriter(filename, true);
+    writer = node.getWriter(tempfile, true);
     writer.append(data);
     writer.newLine();
     writer.close();
-  }
-
-  /**
-   * @return true if the specified file exists.
-   */
-  public boolean exists(String filename) throws IOException {
-    return Utility.fileExists(node, filename);
+    return commitTempFile(tempfile, filename);
   }
 
   /**
@@ -167,21 +167,54 @@ public class NFSService {
   }
 
   /**
+   * @return true if the specified file exists.
+   */
+  public boolean exists(String filename) throws IOException {
+    return Utility.fileExists(node, filename);
+  }
+
+
+  /**
+   * Delete all lines matching the specified line in the specified file.
+   *
+   * If the file does not exist, nothing happens, returns false.
+   *
+   * @return true if deletion was successful.
+   */
+  public boolean deleteLine(String filename, String line) throws IOException {
+    if(!exists(filename)) {
+      return false;
+    }
+    PersistentStorageWriter writer;
+    writer = node.getWriter(filename, false);
+    boolean success = writer.delete();
+    writer.close();
+    return success;
+  }
+
+  /**
    * Prep a temp file for writing.
    *
    * @return the name of the temp file
    */
-  private String prepWrite(String filename) {
-    return null;
+  private String copyTempFile(String filename) throws IOException {
+    File root = Utility.getFileHandle(node, ".");
+    File tempfile = File.createTempFile(filename, TEMP_FILE_SUFFIX, root);
+    List<String> lines = read(filename);
+    for(String line : lines) {
+      append(tempfile.getName(), line);
+    }
+    return filename + TEMP_FILE_SUFFIX;
   }
 
   /**
-   * Commit a temp file as written.
+   * Commit a temp file as an update to an original file.
    *
-   * @return the name of the temp file
+   * @return true if the commit was successful
    */
-  private String commitWrite(String filename) {
-    return null;
+  private boolean commitTempFile(String tempfile, String origfile) 
+      throws IOException {
+    return rename(tempfile, origfile);
   }
 
 }

@@ -310,9 +310,9 @@ public abstract class RPCNode extends RIONode {
    */
   public static UUID extractUUID(byte[] msg) {
     String payload = Utility.byteArrayToString(msg);
-    JSONObject transaction = new JSONObject(payload);
     UUID uuid = null;
     try {
+      JSONObject transaction = new JSONObject(payload);
       uuid = UUID.fromString(transaction.getString("uuid"));
     } catch(JSONException e) {
       LOG.warning("JSON parsing error for RPC transaction");
