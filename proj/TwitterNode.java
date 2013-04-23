@@ -1,8 +1,10 @@
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.UUID;
 
 import org.json.JSONException;
@@ -91,70 +93,116 @@ public class TwitterNode extends RPCNode {
 		System.err.println("Unrecognized command: " + command);
 	}
 	
+	boolean waitingForResponse = false;
+	Queue<String> commandQueue = new LinkedList<String>();
+	
 	private boolean knownCommand(String command) {
+		if (command == null) { return false; }
 		String[] parsedCommand = command.split(" ");
 		String commandName = parsedCommand[0];
 		if(commandName.equals("login")) {
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a username.");
 			} else {
-				login(parsedCommand[1]);
+				if (waitingForResponse) {
+					System.out.println("Please wait!!");
+					commandQueue.offer(command);
+				} else {
+					login(parsedCommand[1]);
+				}
 			}
 			return true;
 		} else if (commandName.equals("logout")) {
-			logout();	
+			if (waitingForResponse) {
+				System.out.println("Please wait!!");
+				commandQueue.offer(command);
+			} else {
+				logout();	
+			}
 			return true;
 		} else if (commandName.equals("create")) {
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a username.");
 			} else {
-				create(parsedCommand[1]);
+				if (waitingForResponse) {
+					System.out.println("Please wait!!");
+					commandQueue.offer(command);
+				} else {
+					create(parsedCommand[1]);
+				}
 			}
 			return true;
 		} else if (commandName.equals("tweet")) {
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a tweet.");
 			}
-			tweet(command.substring(5).trim());
+			if (waitingForResponse) {
+				System.out.println("Please wait!!");
+				commandQueue.offer(command);
+			} else {
+				tweet(command.substring(5).trim());
+			}
 			return true;
 		} else if (commandName.equals("readtweets")) {
-			readTweets();
+			if (waitingForResponse) {
+				System.out.println("Please wait!!");
+				commandQueue.offer(command);
+			} else {
+				readTweets();
+			}
 			return true;
 		} else if (commandName.equals("follow")) {
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a username.");
 			} else {
-				follow(parsedCommand[1]);
+				if (waitingForResponse) {
+					System.out.println("Please wait!!");
+					commandQueue.offer(command);
+				} else {
+					follow(parsedCommand[1]);
+				}
 			} 
 			return true;
 		} else if (commandName.equals("unfollow")) {
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a username.");
 			} else {
-				unfollow(parsedCommand[1]);
+				if (waitingForResponse) {
+					System.out.println("Please wait!!");
+					commandQueue.offer(command);
+				} else {
+					unfollow(parsedCommand[1]);
+				}
 			}
 			return true;
 		} else if (commandName.equals("block")) {
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a username.");
 			} else {
-				block(parsedCommand[1]);
+				if (waitingForResponse) {
+					System.out.println("Please wait!!");
+					commandQueue.offer(command);
+				} else {
+					block(parsedCommand[1]);
+				}
 			}
 			return true;
 		}
 		return false;
 	}
 	
+	
 	private void create(String user) {
+		waitingForResponse = true;
 		// tell server to create files for user.
 		// append users, user 
 		// create user_followers // those who are following this user
 		// create user_stream    // this user's unread tweets
-		JSONObject append = transactionAppend("users.txt", user);
+		//JSONObject append = transactionAppend("users.txt", user);
 		JSONObject cfollowers = transactionCreate(user + "_followers.txt");
 		JSONObject cstream = transactionCreate(user + "_stream.txt");
 		// TODO how do I know the address?
-		List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(append, cfollowers, cstream)));
+		List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(cfollowers, cstream)));
 		mapUUIDs(uuids, TwitterOp.CREATE, user);
 		System.out.println("create user RPC sent");
 	}
@@ -162,6 +210,7 @@ public class TwitterNode extends RPCNode {
 	private void login(String user) {
 		// CHECK_EXISTENCE of user_followers.txt
 		JSONObject existance = transactionExist(user + "_followers.txt");
+		System.out.println(existance.toString());
 		// TODO how do I know the address?
 		List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(existance)));
 		mapUUIDs(uuids, TwitterOp.LOGIN, user);
@@ -262,7 +311,11 @@ public class TwitterNode extends RPCNode {
 					}
 				}
 				if (finished) {
+					waitingForResponse = false;
 					op.display(extraInfo, success);
+					if (commandQueue.size() > 0) {
+						knownCommand(commandQueue.poll());
+					}
 				}
 			}			
 			break;
@@ -270,12 +323,16 @@ public class TwitterNode extends RPCNode {
 		case LOGIN: {
 			Boolean exists;
 			try {
-				exists = Boolean.parseBoolean(transaction.getString("data"));
+				exists = transaction.getBoolean("exists");
 			} catch (JSONException e) {
 				exists = false;
 			}
 			username = exists ? extraInfo : username;
+			waitingForResponse = false;
 			op.display(extraInfo, exists);
+			if (commandQueue.size() > 0) {
+				knownCommand(commandQueue.poll());
+			}
 			break;
 		}			
 		case TWEET: {
@@ -285,17 +342,25 @@ public class TwitterNode extends RPCNode {
 				// TODO:
 				String[] followers;
 				try {
-					followers = transaction.getString("data").split("\n");
+					followers = (String[]) transaction.get("data");
 				} catch (JSONException e) {
 					followers = new String[0];
 				}
-				ArrayList<JSONObject> appends = new ArrayList<JSONObject>();
-				for (String follower : followers) {
-					JSONObject append = transactionAppend(follower + "_stream.txt", username + ": " + extraInfo);
-					appends.add(append);
+				if (followers.length > 0) {
+					ArrayList<JSONObject> appends = new ArrayList<JSONObject>();
+					for (String follower : followers) {
+						JSONObject append = transactionAppend(follower + "_stream.txt", username + ": " + extraInfo);
+						appends.add(append);
+					}
+					List<UUID> uuids = RPCSend(DEST_ADDR, appends);
+					mapUUIDs(uuids, TwitterOp.TWEET, extraInfo);
+				} else {
+					waitingForResponse = false;
+					op.display(extraInfo, success);
+					if (commandQueue.size() > 0) {
+						knownCommand(commandQueue.poll());
+					}
 				}
-				List<UUID> uuids = RPCSend(DEST_ADDR, appends);
-				mapUUIDs(uuids, TwitterOp.TWEET, extraInfo);
 			} else { // We heard back from a tweet append. Check if all the appends are back.
 				List<UUID> transactionuuids = transactionsmap.remove(uuid);
 				if (transactionuuids != null) {
@@ -307,26 +372,42 @@ public class TwitterNode extends RPCNode {
 						}
 					}
 					if (finished) {
+						waitingForResponse = false;
 						op.display(extraInfo, success);
+						if (commandQueue.size() > 0) {
+							knownCommand(commandQueue.poll());
+						}
 					}
 				}			
 			}
 			break;
 		}
 		case READTWEETS: {
-			String file;
+			String[] file;
 			try {
-				file = transaction.getString("data"); //Assume key "data", assume gives file as one string.
+				file = (String[]) transaction.get("data"); //Assume key "data", assume gives file as one string.
 			} catch (JSONException e) {
-				file = "You have no unread tweets.";
+				file = new String[] {"You have no unread tweets."};
 			} 
-			op.display(file, success);
+			StringBuilder sb = new StringBuilder();
+			for (String s : file) {
+				sb.append(s + "\n");
+			}
+			waitingForResponse = false;
+			op.display(sb.toString(), success);
+			if (commandQueue.size() > 0) {
+				knownCommand(commandQueue.poll());
+			}
 			break;
 		}
 		case FOLLOW:
 		case UNFOLLOW: 
 		case BLOCK: {
+			waitingForResponse = false;
 			op.display(extraInfo, success);
+			if (commandQueue.size() > 0) {
+				knownCommand(commandQueue.poll());
+			}
 			break;
 		}
 		case LOGOUT:

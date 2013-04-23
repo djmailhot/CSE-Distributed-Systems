@@ -3,6 +3,7 @@ start 1
 time
 0 create steph
 time
+0 login steph
 time
 0 tweet hello
 0 tweet this is fun
