@@ -1,9 +1,10 @@
 import java.util.LinkedList;
+import java.util.List;
 
 /* Holds the from/to addresses and last sequence numbers for a set of input and output channels */
 public class SeqLogEntries {
 	/* Tuple of address, sequence number */
-	public class AddrSeqPair{
+	public static class AddrSeqPair{
 		private final int addr;
 		private final int seq;
 		
@@ -27,9 +28,9 @@ public class SeqLogEntries {
 	
 	/* Makes a shallow copy of the linked lists passed in, then this finalizes so it can't be messed with. */
 	@SuppressWarnings("unchecked")
-	public SeqLogEntries(LinkedList<AddrSeqPair> seq_send, LinkedList<AddrSeqPair> seq_recv){
-		this.seq_send = (LinkedList<AddrSeqPair>) seq_send.clone();
-		this.seq_recv = (LinkedList<AddrSeqPair>) seq_recv.clone();
+	public SeqLogEntries(List<AddrSeqPair> seq_sends, List<AddrSeqPair> seq_recvs){
+		this.seq_send = new LinkedList<AddrSeqPair>(seq_sends);
+		this.seq_recv = new LinkedList<AddrSeqPair>(seq_recvs);
 	}
 	
 	/* Accessor methods */

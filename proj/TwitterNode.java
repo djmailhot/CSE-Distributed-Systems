@@ -244,7 +244,7 @@ public class TwitterNode extends RPCNode {
 		String extraInfo = p.b;
 		boolean success;
 		try {
-			success = Boolean.parseBoolean(transaction.getString("success"));
+			success = transaction.getBoolean("success");
 		} catch (JSONException e) {
 			success = false;
 		}

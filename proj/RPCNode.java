@@ -185,6 +185,14 @@ public abstract class RPCNode extends RIONode {
     return transaction;
   }
 
+  public static JSONObject transactionDeleteLine(String filename, String data) {
+    return null;
+  }
+
+  public static JSONObject transactionExist(String filename) {
+    return null;
+  }
+
   private static JSONObject newTransaction(int operation, String filename)
         throws JSONException {
     JSONObject t = new JSONObject();
