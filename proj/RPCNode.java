@@ -40,7 +40,7 @@ public abstract class RPCNode extends RIONode {
    * Enum to specify the RPC operation name.
    */
   public static enum NFSOperation {
-    CREATE, READ, APPEND, CHECK, DELETE, EXISTS;
+    CREATE, READ, APPEND, CHECK, DELETE, EXISTS, DELETELINE;
 
     public static NFSOperation fromInt(int value) {
       if(value == CREATE.ordinal()) { return CREATE; }
@@ -49,6 +49,7 @@ public abstract class RPCNode extends RIONode {
       else if(value == CHECK.ordinal()) { return CHECK; }
       else if(value == DELETE.ordinal()) { return DELETE; }
       else if(value == EXISTS.ordinal()) { return EXISTS; }
+      else if(value == DELETELINE.ordinal()) { return EXISTS; }
       else { return null; }
     }
   }
@@ -187,10 +188,26 @@ public abstract class RPCNode extends RIONode {
     return transaction;
   }
 
-  public static JSONObject transactionDeleteLine(String filename, String data) {
-    return new JSONObject(); // TODO: this should be non-empty!!!
+  /**
+   * Delete all lines matching the specified line in the specified file.
+   * @return the transaction, or null if a JSON parsing error
+   */
+  public static JSONObject transactionDeleteLine(String filename, String line) {
+    JSONObject transaction = null;
+    try {
+      transaction = newTransaction(NFSOperation.DELETELINE.ordinal(), filename);
+      transaction.put("line", line);
+    } catch(JSONException e) {
+      LOG.warning("JSON parsing error for RPC transaction");
+      e.printStackTrace();
+    }
+    return transaction;
   }
 
+  /**
+   * Check if the specified file exists.
+   * @return the transaction, or null if a JSON parsing error
+   */
   public static JSONObject transactionExist(String filename) {
     JSONObject transaction = null;
     try {
@@ -287,6 +304,23 @@ public abstract class RPCNode extends RIONode {
     }
   }
 
+  /**
+   * Returns the UUID of the specified transaction.
+   * @return the UUID, or null if none present
+   */
+  public static UUID extractUUID(byte[] msg) {
+    String payload = Utility.byteArrayToString(msg);
+    JSONObject transaction = new JSONObject(payload);
+    UUID uuid = null;
+    try {
+      uuid = UUID.fromString(transaction.getString("uuid"));
+    } catch(JSONException e) {
+      LOG.warning("JSON parsing error for RPC transaction");
+      e.printStackTrace();
+    }
+    return uuid;
+  }
+
 	/**
 	 * Method that is called by the RPC layer when an RPC Request transaction is 
    * received.
@@ -328,6 +362,10 @@ public abstract class RPCNode extends RIONode {
         case EXISTS:
           boolean exists = nfsService.exists(filename);
           response.put("exists", exists);
+          break;
+        case DELETELINE:
+          String line = response.getString("line");
+          nfsService.deleteLine(filename, line);
           break;
         default:
           LOG.warning("Received invalid operation type");
