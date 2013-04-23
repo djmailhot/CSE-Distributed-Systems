@@ -101,7 +101,11 @@ public class NFSService {
    * That is, the filenames can be safely passed to other NFSService methods.
    */
   public List<String> getFileList() throws IOException {
-    return Arrays.asList(Utility.getFileHandle(node, ".").list());
+    File file = Utility.getFileHandle(node, ".");
+    if(!file.exists()) {
+      return new ArrayList<String>();
+    }
+    return Arrays.asList(file.list());
   }
 
   /**
