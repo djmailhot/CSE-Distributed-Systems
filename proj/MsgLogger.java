@@ -1,3 +1,4 @@
+import java.util.LinkedList;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.io.IOException;
@@ -32,6 +33,24 @@ public class MsgLogger {
 		return (sendRecv == SEND)?delim_send:delim_recv;
 	}
 	
+	/* Since files have newlines and we need to have a single string, this handles
+	 * concatenating the whole file's contents into a single string.
+	 */
+	private String loadFile(String filename){
+		String contents = "";
+		try {
+			
+			List<String> strings = nfs.read(filename);
+			for(String s: strings){
+				contents.concat(s);
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+		return contents;
+	}
+	
 	/* Constructs a file name from the information passed in. Output will have
 	 * the form:
 	 * 		<delim><addr><delim><seqNum>.log
@@ -63,7 +82,6 @@ public class MsgLogger {
       // can we make this atomic instead?  Is that possible?
       alreadyLogged = nfs.exists(filename);
       if(!alreadyLogged){
-        nfs.create(filename);
         nfs.write(filename,msg);
       }
     } catch(IOException e) {
@@ -101,7 +119,7 @@ public class MsgLogger {
       // iterate all files in directory prefixed with delim_recv and load them as files
       for(String s : fileNames){
         if(s.charAt(0) == delim){
-          String msg = nfs.read(s).get(0);
+          String msg = loadFile(s);
           int addr = Integer.parseInt(s.substring(1, s.indexOf(delim,1)));
           int seqNum = Integer.parseInt(s.substring(s.indexOf(delim,1)+1,s.length()-4));
           logs.add(new MsgLogEntry(msg, seqNum, addr));
@@ -128,7 +146,7 @@ public class MsgLogger {
       // iterate all files in directory prefixed with delim_recv and load them as files
       for(String s : fileNames){
         if(s.charAt(0) == delim){
-          String msg = nfs.read(s).get(0);
+          String msg = loadFile(s);
           int currentAddr = Integer.parseInt(s.substring(1, s.indexOf(delim,1)));
           int seqNum = Integer.parseInt(s.substring(s.indexOf(delim,1)+1,s.length()-4));
           if (currentAddr == addr) logs.add(new MsgLogEntry(msg, seqNum, addr));

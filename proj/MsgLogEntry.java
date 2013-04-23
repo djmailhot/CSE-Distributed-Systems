@@ -26,7 +26,7 @@ public class MsgLogEntry implements Comparable<MsgLogEntry> {
 		return this.msg;
 	}
 	
-	public int from(){
+	public int addr(){
 		return this.addr;
 	}
 

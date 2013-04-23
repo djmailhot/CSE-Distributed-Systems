@@ -413,7 +413,8 @@ public class Emulator extends Manager {
 		try {
 			node = nodeImpl.newInstance();
 		} catch (Exception e) {
-			System.err.println("Error while constructing node: " + e);
+			System.err.println("Error while constructing node: \n");
+			e.printStackTrace();
 			killServer();
 			stop();
 		}

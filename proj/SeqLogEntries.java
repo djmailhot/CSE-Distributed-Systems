@@ -27,7 +27,6 @@ public class SeqLogEntries {
 	private final LinkedList<AddrSeqPair> seq_recv;
 	
 	/* Makes a shallow copy of the linked lists passed in, then this finalizes so it can't be messed with. */
-	@SuppressWarnings("unchecked")
 	public SeqLogEntries(List<AddrSeqPair> seq_sends, List<AddrSeqPair> seq_recvs){
 		this.seq_send = new LinkedList<AddrSeqPair>(seq_sends);
 		this.seq_recv = new LinkedList<AddrSeqPair>(seq_recvs);
