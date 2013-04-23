@@ -19,6 +19,8 @@ import org.json.JSONObject;
 public abstract class RPCNode extends RIONode {
   private static final Logger LOG = Logger.getLogger(RPCNode.class.getName());
 
+  private final NFSService nfsService;
+
   /**
    * Enum to specify the RPC message type.
    */
@@ -50,6 +52,10 @@ public abstract class RPCNode extends RIONode {
         default: return null;
       }
     }
+  }
+
+  public RPCNode() {
+    this.nfsService = new NFSService(this);
   }
 
 	//----------------------------------------------------------------------------
@@ -200,17 +206,41 @@ public abstract class RPCNode extends RIONode {
         throws JSONException {
     int procedure = message.getInt("procedure");
     String filename = message.getString("filename");
+    JSONObject response = prepareResponse(message);
 
     // TODO:  link these to the NFSService
     switch (NFSProcedure.parseInt(procedure)) {
       case CREATE:
+        nfsService.create(filename);
+        break;
       case READ:
+        List<String> data = nfsService.read(filename);
+        response.put("data", data);
+        break;
       case APPEND:
+        String data = message.getString("data");
+        nfsService.append(filename, data);
+        break;
       case CHECK:
+        boolean status = nfsService.check(filename);
+        break;
       case DELETE:
+        nfsService.delete(filename);
+        break;
       default:
         LOG.warn("Received invalid procedure type");
     }
+    RPCSend(from, response);
+  }
+
+  private JSONObject prepareResponse(JSONObject request) {
+    JSONObject response = new JSONObject();
+    UUID uuid = extractUUID(message);
+    response.put("uuid", uuid.toString());
+    response.put("messageType", MessageType.RESPONSE.ordinal());
+    response.put("filename", message.getString("filename"));
+    response.put("procedure", message.getString("procedure"));
+    return response;
   }
 
 	/**
