@@ -62,7 +62,7 @@ public class MsgLogger {
 		boolean alreadyLogged = FS.exists(filename);
 		if(!alreadyLogged){
 			FS.create(filename);
-			FS.write(filename,msg);
+			FS.append(filename,msg);
 		}
 		return alreadyLogged;		
 	}

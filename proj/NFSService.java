@@ -2,6 +2,7 @@ import edu.washington.cs.cse490h.lib.Node;
 import edu.washington.cs.cse490h.lib.PersistentStorageWriter;
 import edu.washington.cs.cse490h.lib.PersistentStorageReader;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -33,7 +34,7 @@ public class NFSService {
    */
   public void create(String filename) throws IOException {
     PersistentStorageWriter writer;
-    writer = new PersistentStorageWriter(node, filename, false);
+    writer = node.getWriter(filename, false);
     writer.close();
   }
 
@@ -42,7 +43,7 @@ public class NFSService {
    */
   public List<String> read(String filename) throws IOException {
     PersistentStorageReader reader;
-    reader = new PersistentStorageReader(node, filename);
+    reader = node.getReader(filename);
 
     List<String> lines = new ArrayList<String>();
     String line = reader.readLine();
@@ -61,7 +62,7 @@ public class NFSService {
    */
   public void append(String filename, String data) throws IOException {
     PersistentStorageWriter writer;
-    writer = new PersistentStorageWriter(node, filename, true);
+    writer = node.getWriter(filename, true);
     writer.append(data);
     writer.newLine();
     writer.close();
@@ -81,7 +82,7 @@ public class NFSService {
    */
   public void delete(String filename) throws IOException {
     PersistentStorageWriter writer;
-    writer = new PersistentStorageWriter(node, filename, false);
+    writer = node.getWriter(filename, false);
     writer.delete();
     writer.close();
   }

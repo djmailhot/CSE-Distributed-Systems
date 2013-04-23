@@ -271,7 +271,8 @@ public class TwitterNode extends RPCNode {
 		}			
 		case TWEET: {
 			// if we just read the list of followers, we still have to post to their streams.
-			if (transaction.getString("procedure").equals("READ")) {
+      NFSOperation operation = extractNFSOperation(transaction);
+			if (operation == NFSOperation.READ) {
 				// TODO:
 				String[] followers = transaction.getString("data").split("\n");
 				ArrayList<JSONObject> appends = new ArrayList<JSONObject>();
