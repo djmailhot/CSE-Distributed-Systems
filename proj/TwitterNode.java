@@ -235,15 +235,19 @@ public class TwitterNode extends RPCNode {
 	}
 
 	@Override
-	public void onRPCResponse(Integer from, JSONObject transaction)
-			throws JSONException {
+	public void onRPCResponse(Integer from, JSONObject transaction) {
 		UUID uuid = extractUUID(transaction);
 		Pair<TwitterOp, String> p = uuidmap.remove(uuid);
 		if (p == null) { return; } // We are not expecting this response.
 		
 		TwitterOp op = p.a;
 		String extraInfo = p.b;
-		boolean success = Boolean.parseBoolean(transaction.getString("success"));
+		boolean success;
+		try {
+			success = Boolean.parseBoolean(transaction.getString("success"));
+		} catch (JSONException e) {
+			success = false;
+		}
 		
 		// process the response
 		switch(op) {
@@ -264,7 +268,12 @@ public class TwitterNode extends RPCNode {
 			break;
 		}
 		case LOGIN: {
-			Boolean exists = Boolean.parseBoolean(transaction.getString("data"));
+			Boolean exists;
+			try {
+				exists = Boolean.parseBoolean(transaction.getString("data"));
+			} catch (JSONException e) {
+				exists = false;
+			}
 			username = exists ? extraInfo : username;
 			op.display(extraInfo, exists);
 			break;
@@ -274,7 +283,12 @@ public class TwitterNode extends RPCNode {
       NFSOperation operation = extractNFSOperation(transaction);
 			if (operation == NFSOperation.READ) {
 				// TODO:
-				String[] followers = transaction.getString("data").split("\n");
+				String[] followers;
+				try {
+					followers = transaction.getString("data").split("\n");
+				} catch (JSONException e) {
+					followers = new String[0];
+				}
 				ArrayList<JSONObject> appends = new ArrayList<JSONObject>();
 				for (String follower : followers) {
 					JSONObject append = transactionAppend(follower + "_stream.txt", username + ": " + extraInfo);
@@ -300,7 +314,12 @@ public class TwitterNode extends RPCNode {
 			break;
 		}
 		case READTWEETS: {
-			String file = transaction.getString("data"); //Assume key "data", assume gives file as one string.
+			String file;
+			try {
+				file = transaction.getString("data"); //Assume key "data", assume gives file as one string.
+			} catch (JSONException e) {
+				file = "You have no unread tweets.";
+			} 
 			op.display(file, success);
 			break;
 		}
