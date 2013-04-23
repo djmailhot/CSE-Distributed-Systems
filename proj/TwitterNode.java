@@ -22,6 +22,11 @@ public class TwitterNode extends RPCNode {
 	private String username = null; 
 	private int TEMP_TO_ADDRESS = 0; // NOT SURE HOW TO KNOW THE DESTINATION ADDRESS
 	
+	
+	public TwitterNode() {
+		super();
+	}
+	
 	private enum TwitterOp {
 		LOGIN {
 			public void display(String param, boolean exists) {
@@ -155,7 +160,7 @@ public class TwitterNode extends RPCNode {
 	}
 	
 	private void login(String user) {
-		// CHECK_EXISTENCE of user_stream
+		// CHECK_EXISTENCE of user_followers.txt
 		JSONObject existance = transactionExist(user + "_followers.txt");
 		// TODO how do I know the address?
 		List<UUID> uuids = RPCSend(TEMP_TO_ADDRESS, new ArrayList<JSONObject>(Arrays.asList(existance)));
@@ -180,12 +185,10 @@ public class TwitterNode extends RPCNode {
 		// read tweets from server
 		// READ username_stream
 		// DELETE username_stream // holds only unread tweets
-		// CREATE username_stream 
 		JSONObject read = transactionRead(username + "_stream.txt");
 		JSONObject delete = transactionDelete(username + "_stream.txt");
-		JSONObject create = transactionCreate(username + "_stream.txt"); // UNNECESSARY if append wil
 		// TODO how do I know the address?
-		List<UUID> uuids = RPCSend(TEMP_TO_ADDRESS, new ArrayList<JSONObject>(Arrays.asList(read, delete, create)));
+		List<UUID> uuids = RPCSend(TEMP_TO_ADDRESS, new ArrayList<JSONObject>(Arrays.asList(read, delete)));
 		mapUUIDs(uuids, TwitterOp.READTWEETS, null);
 		System.out.println("read tweets RPC sent");
 	}
