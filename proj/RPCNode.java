@@ -299,8 +299,11 @@ public abstract class RPCNode extends RIONode {
           nfsService.append(filename, appendData);
           break;
         case CHECK:
-          Date date = new Date(transaction.getLong("date"));
-          boolean status = nfsService.check(filename, date);
+          long time = transaction.getLong("date")
+          Date date = new Date(time);
+          boolean check = nfsService.check(filename, date);
+          response.put("date", time);
+          response.put("check", check);
           break;
         case DELETE:
           nfsService.delete(filename);
@@ -337,6 +340,21 @@ public abstract class RPCNode extends RIONode {
 	 *            The address from which the message was received
 	 * @param transaction
 	 *            The RPC transaction that was received
+   *
+   * The transaction should contain the following fields:
+   * String "uuid" - unique id
+   * int "messageType" - MessageType enum ordinal
+   * int "operation" - NFSOperation enum ordinal
+   * String "filename" - the file that was targeted
+   *
+   * Conditional fields on MessageType:
+   * if("messageType" -> MessageType.READ)
+   *   JSONArray "data" - array of strings, each representing a line of the file
+   * if("messageType" -> MessageType.CHECK)
+   *   long "date" - the long representation of a Date object
+   *   Boolean "check" - true if the file version is no newer than the
+   *                     accompanying Date
+   *
 	 */
   public abstract void onRPCResponse(Integer from, JSONObject transaction);
 
