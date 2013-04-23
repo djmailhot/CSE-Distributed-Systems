@@ -10,6 +10,6 @@ sub main {
     
     $args = join " ", @ARGV;
 
-    exec("java -cp $classpath edu.washington.cs.cse490h.lib.MessageLayer $args");
+    exec("java -agentlib:jdwp=transport=dt_socket,address=8000,server=y,suspend=n -ea -cp $classpath edu.washington.cs.cse490h.lib.MessageLayer $args");
 }
 
