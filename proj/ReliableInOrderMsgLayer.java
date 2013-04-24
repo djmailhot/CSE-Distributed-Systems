@@ -62,14 +62,12 @@ public class ReliableInOrderMsgLayer {
 		boolean deletedSomeRecvs = false;
 		for(MsgLogEntry mle: recvLogsAll){
 			RIOPacket rp = new RIOPacket(Protocol.DATA, mle.seqNum(), mle.msg().getBytes());
-			System.out.println("rp: " + rp.getPayload());
 
 			//if we have a matching UUID, then we crashed between deleting the recv log, and making the send log for the response.
 			//We have a send log, but the recv log hasn't been deleted.  So we do that now, and don't add this to the responseMap.
 			boolean alreadyResponded = false;
 			for(MsgLogEntry mle2: sendLogsAll){
 				RIOPacket rp2 = new RIOPacket(Protocol.DATA, mle2.seqNum(), mle2.msg().getBytes());
-				System.out.println("rp2: " + rp2.getPayload());
 				if(RPCNode.extractUUID(rp.getPayload()) == RPCNode.extractUUID(rp2.getPayload())){
 					alreadyResponded = true;
 					deletedSomeRecvs = true;
@@ -178,7 +176,6 @@ public class ReliableInOrderMsgLayer {
 		//  the msg itself.  Note if a log file already exists for this from/seqNumber combination
 		//  we will not log it again.
 		RIOPacket riopkt = RIOPacket.unpack(msg);
-		System.out.println("rdp: " + new String(msg));
 		
 		//network corruption won't let us make a packet
 		if(riopkt==null) return;
@@ -221,8 +218,6 @@ public class ReliableInOrderMsgLayer {
 	 */
 	public void RIOAckReceive(int from, byte[] msg) {
 		int seqNum = Integer.parseInt( Utility.byteArrayToString(msg) );
-		System.out.println("ack: " + Integer.toString(from) + ", " + Integer.toString(seqNum));
-		System.out.println("i am: " + Integer.toString(this.n.addr));
 		outConnections.get(from).gotACK(from,seqNum);
 	}
 
@@ -258,7 +253,6 @@ public class ReliableInOrderMsgLayer {
 			UUID currentUUID = RPCNode.extractUUID(payload);
 			SeqLogEntries.AddrSeqPair asp = responseMap.get(currentUUID);
 			if(asp != null){
-				System.out.println("THis thing is working.l...............");
 				this.msl.deleteLog(asp.addr(), asp.seq(), MsgLogger.RECV);
 				responseMap.remove(currentUUID);
 			}
@@ -343,7 +337,6 @@ class InChannel {
 		}
 		// Duplicate packets are ignored, should delete a log at this point if it exists
 		else{
-			System.out.println("FIXING!!!!!!!________________________________________");
 			this.msl.deleteLog(from, pkt.getSeqNum(), MsgLogger.RECV);
 		}
 		
