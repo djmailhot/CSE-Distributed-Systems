@@ -366,10 +366,8 @@ public class TwitterNode extends RPCNode {
 		}			
 		case TWEET: {
 			// if we just read the list of followers, we still have to post to their streams.
-      System.out.println("TWEETRESPONSE!!!!!!!!!!!  	" + extraInfo);
-			NFSOperation operation = extractNFSOperation(transaction);
+      NFSOperation operation = extractNFSOperation(transaction);
 			if (operation == NFSOperation.READ) {
-				System.out.println("READ");
 				List<String> followers = extractFilelines(transaction);
 				if (followers.size() > 0) {
 					ArrayList<JSONObject> appends = new ArrayList<JSONObject>();
@@ -387,7 +385,6 @@ public class TwitterNode extends RPCNode {
 					}
 				}
 			} else { // We heard back from a tweet append. Check if all the appends are back.
-				System.out.println("APPEND");
 				List<UUID> transactionuuids = transactionsmap.remove(uuid);
 				boolean finished = true;
 				if (transactionuuids != null) {
@@ -399,7 +396,6 @@ public class TwitterNode extends RPCNode {
 					}
 				}
 				if (finished) {
-					System.out.println("done tweeting!!!");
 					waitingForResponse = false;
 					op.display(extraInfo, success);
 					if (commandQueue.size() > 0) {
@@ -410,15 +406,23 @@ public class TwitterNode extends RPCNode {
 			break;
 		}
 		case READTWEETS: {
+			System.out.println("OMG I AM READING TWEETS RIGHT NOWWWWW");
+			NFSOperation operation = extractNFSOperation(transaction);
+			if (operation == NFSOperation.READ) {
 			List<String> file = extractFilelines(transaction);
-			StringBuilder sb = new StringBuilder();
-			for (String s : file) {
-				sb.append(s + "\n");
-			}
-			waitingForResponse = false;
-			op.display(sb.toString(), success);
-			if (commandQueue.size() > 0) {
-				knownCommand(commandQueue.poll());
+				StringBuilder sb = new StringBuilder();
+				for (String s : file) {
+					sb.append(s + "\n");
+				}
+				waitingForResponse = false;
+				String tweets = sb.toString();
+				if (tweets.equals("")) {
+					tweets = "You have no unread tweets";
+				}
+				op.display(tweets, success);
+				if (commandQueue.size() > 0) {
+					knownCommand(commandQueue.poll());
+				}
 			}
 			break;
 		}
