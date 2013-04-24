@@ -1,0 +1,105 @@
+The commands serialize in perfect order, despite being re-ordered by the network and many node failures.
+
+
+
+start 0
+start 1
+time
+0 create steph   node:1 WRITE create:steph_followers.txt   node:1 WRITE create:steph_stream.txt   
+time
+time
+time
+time
+0 create matt    node:1 WRITE create:matt_followers.txt    node:1 WRITE create:matt_stream.txt
+time
+time
+time
+time
+time
+0 login matt     SEND src:1 dest:0 proto:0 {"operation":5,"exists":true,"filename":"matt_followers.txt","uuid":"202ce601-90b1-48ea-86c1-079c0a064110","messageType":1}
+time
+time
+time
+time
+time
+time
+time
+time
+0 follow steph      node:1 WRITE buf:'matt'
+time
+time
+time
+time
+time
+time
+time
+time
+0 logout	node:0 WRITE delete:username.txt
+time
+time
+time
+time
+time
+time
+time
+time
+0 login steph    node:1 WRITE buf:'{"operation":5,"exists":true,"filename":"steph_followers.txt","uuid":"230f36aa-4a41-49e4-8b3e-ba503ba8701a","messageType":1}'
+time
+time
+time
+time
+time
+time
+time
+time
+0 tweet hello     node:1 WRITE append buf:'steph:_hello'       (to matt's stream)
+time
+time
+time
+time
+time
+time
+time
+time
+0 tweet this is fun    node:1 WRITE append buf:'steph:_this_is_fun'       (to matt's stream)
+time
+time
+time
+time
+time
+time
+time
+time
+time
+time
+time
+time
+time
+0 readtweets      SEND src:1 dest:0 proto:0 {"operation":1,"filelines":[],"filename":"steph_stream.txt","uuid":"06751425-0269-4f23-a385-0c1b9ecfba8e","messageType":1}    (followed by deleting stephanie's stream)
+time
+time
+time
+time
+time
+time
+time
+0 logout          node:0 WRITE delete:username.txt
+time
+time
+0 login matt      RECVD src:1 dest:0 proto:0 {"operation":5,"exists":true,"filename":"matt_followers.txt","uuid":"97f38832-c754-46c6-a297-191daeec1a75","messageType":1}
+time
+time 
+time
+time
+time
+time
+0 readtweets      node:1 READ readline: 'steph:_hello'    node:1 READ readline: 'steph:_this_is_fun'     (followed by deleting mat's stream)
+time
+time
+time
+time
+time
+time
+0 fake_command    <nothing happens>
+time
+time
