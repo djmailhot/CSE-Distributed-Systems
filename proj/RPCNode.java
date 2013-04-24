@@ -356,8 +356,8 @@ public abstract class RPCNode extends RIONode {
           nfsService.create(filename);
           break;
         case READ:
-          JSONArray returnData = new JSONArray(nfsService.read(filename));
-          response.put("filelines", returnData);
+          List<String> filelines = nfsService.read(filename);
+          response.put("filelines", filelines);
           break;
         case APPEND:
           String appendData = transaction.getString("data");
