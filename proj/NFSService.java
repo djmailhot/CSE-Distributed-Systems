@@ -37,6 +37,7 @@ public class NFSService {
    * If the file already exists, nothing happens.
    */
   public void create(String filename) throws IOException {
+    System.out.println(String.format("create %s", filename));
     PersistentStorageWriter writer = node.getWriter(filename, false);
     writer.close();
   }
@@ -47,6 +48,7 @@ public class NFSService {
    * If the file does not exist, returns null;
    */
   public List<String> read(String filename) throws IOException {
+    System.out.println(String.format("read %s", filename));
     if(!exists(filename)) {
       return null;
     }
@@ -71,6 +73,7 @@ public class NFSService {
    * @return true if the write was successful
    */
   public boolean write(String filename, String data) throws IOException {
+    System.out.println(String.format("write %s = %s", filename, data));
     String tempname = newTempFile(filename);
     PersistentStorageWriter writer = node.getWriter(tempname, false);
     writer.write(data);
@@ -98,6 +101,7 @@ public class NFSService {
    * That is, the filenames can be safely passed to other NFSService methods.
    */
   public List<String> getFileList() throws IOException {
+    System.out.println(String.format("getFiles"));
     File file = Utility.getFileHandle(node, ".");
     if(!file.exists()) {
       return new ArrayList<String>();
@@ -116,6 +120,7 @@ public class NFSService {
    * @return true if the append was successful
    */
   public boolean append(String filename, String data) throws IOException {
+    System.out.println(String.format("append %s + %s", filename, data));
     String tempname = copyTempFile(filename);
     PersistentStorageWriter writer = node.getWriter(tempname, true);
     writer.append(data);
@@ -134,6 +139,7 @@ public class NFSService {
    *         than the specified date.
    */
   public boolean check(String filename, Date date) throws IOException {
+    System.out.println(String.format("check %s", filename));
     if(!exists(filename)) {
       return true;
     }
@@ -149,6 +155,7 @@ public class NFSService {
    * @return true if deletion was successful.
    */
   public boolean delete(String filename) throws IOException {
+    System.out.println(String.format("delete %s", filename));
     if(!exists(filename)) {
       return false;
     }
@@ -174,6 +181,7 @@ public class NFSService {
    * @return true if deletion was successful.
    */
   public boolean deleteLine(String filename, String line) throws IOException {
+    System.out.println(String.format("deleteLine %s - %s", filename, line));
     if(!exists(filename)) {
       return false;
     }
