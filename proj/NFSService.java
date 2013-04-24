@@ -46,19 +46,33 @@ public class NFSService {
    * If the file does not exist, returns null;
    */
   public List<String> read(String filename) throws IOException {
+	  System.out.println("read: " + filename);
     if(!exists(filename)) {
+    	System.out.println("read1: " + filename);
       return null;
     }
     PersistentStorageReader reader;
     reader = node.getReader(filename);
+    System.out.println("read2: " + reader);
 
     List<String> lines = new ArrayList<String>();
-    String line = reader.readLine();
+    String line = "";
+    System.out.println("read2.5");
+    try{
+    	line = reader.readLine();	
+    } catch (Exception e){
+    	e.printStackTrace();
+    }
+    
+    System.out.println("read3: " + line);
     while(line != null) {
       lines.add(line);
+      System.out.println("read4");
       line = reader.readLine();
+      
     }
     reader.close();
+    System.out.println("read5");
     return lines;
   }
 

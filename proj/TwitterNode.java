@@ -78,11 +78,6 @@ public class TwitterNode extends RPCNode {
 		public abstract void display(String param, boolean success);
 	}
 	
-	@Override
-	public void start() {
-		// TODO Auto-generated method stub
-		
-	}
 
 	@Override
 	public void onCommand(String command) {

@@ -79,28 +79,29 @@ public class SeqNumLogger {
 		int seq_recv = -1;
 		List<SeqLogEntries.AddrSeqPair> seq_sends = new LinkedList<SeqLogEntries.AddrSeqPair>();
 		List<SeqLogEntries.AddrSeqPair> seq_recvs = new LinkedList<SeqLogEntries.AddrSeqPair>();
-    try {
-      List<String> fileNames = nfs.getFileList();
-      
-      // iterate all files in directory until we hit the ones starting with delim
-      for(String s : fileNames){
-        if(s.charAt(0) == delim.charAt(0)){
-          if(s.charAt(1) == delim.charAt(0)){
-            int currentAddr = Integer.parseInt(s.substring(2, s.indexOf("$", 2)));
-            int currentSeq = Integer.parseInt(s.substring(s.indexOf("$", 2)+1,s.length()-4));
-            seq_sends.add(new SeqLogEntries.AddrSeqPair(currentAddr,currentSeq));
-          }
-          else{
-            int currentAddr = Integer.parseInt(s.substring(1, s.indexOf("$", 1)));
-            int currentSeq = Integer.parseInt(s.substring(s.indexOf("$", 1)+1,s.length()-4));
-            seq_recvs.add(new SeqLogEntries.AddrSeqPair(currentAddr,currentSeq));
-          }
-        }
-      }
-    } catch(IOException e) {
-      e.printStackTrace();
-      throw new RuntimeException("Error with NFS file system");
-    }
+		
+	    try {
+	      List<String> fileNames = nfs.getFileList();
+	      
+	      // iterate all files in directory until we hit the ones starting with delim
+	      for(String s : fileNames){
+	        if(s.charAt(0) == delim.charAt(0)){
+	          if(s.charAt(1) == delim.charAt(0)){
+	            int currentAddr = Integer.parseInt(s.substring(2, s.indexOf("$", 2)));
+	            int currentSeq = Integer.parseInt(s.substring(s.indexOf("$", 2)+1,s.length()-4));
+	            seq_sends.add(new SeqLogEntries.AddrSeqPair(currentAddr,currentSeq));
+	          }
+	          else{
+	            int currentAddr = Integer.parseInt(s.substring(1, s.indexOf("$", 1)));
+	            int currentSeq = Integer.parseInt(s.substring(s.indexOf("$", 1)+1,s.length()-4));
+	            seq_recvs.add(new SeqLogEntries.AddrSeqPair(currentAddr,currentSeq));
+	          }
+	        }
+	      }
+	    } catch(IOException e) {
+	      e.printStackTrace();
+	      throw new RuntimeException("Error with NFS file system");
+	    }
 		
 		return new SeqLogEntries(seq_sends, seq_recvs);
 		
