@@ -29,7 +29,7 @@ public class TwitterNode extends RPCNode {
 	public static double getFailureRate() { return 0/100.0; }
 	public static double getRecoveryRate() { return 100/100.0; }
 	public static double getDropRate() { return 10/100.0; }
-	public static double getDelayRate() { return 25/100.0; }
+	public static double getDelayRate() { return 10/100.0; }
 	
 	public TwitterNode() {
 		super();
@@ -366,16 +366,12 @@ public class TwitterNode extends RPCNode {
 		}			
 		case TWEET: {
 			// if we just read the list of followers, we still have to post to their streams.
-      NFSOperation operation = extractNFSOperation(transaction);
+      System.out.println("TWEETRESPONSE!!!!!!!!!!!  	" + extraInfo);
+			NFSOperation operation = extractNFSOperation(transaction);
 			if (operation == NFSOperation.READ) {
-				// TODO:
-				String[] followers;
-				try {
-					followers = (String[]) transaction.get("data");
-				} catch (JSONException e) {
-					followers = new String[0];
-				}
-				if (followers.length > 0) {
+				System.out.println("READ");
+				List<String> followers = extractFilelines(transaction);
+				if (followers.size() > 0) {
 					ArrayList<JSONObject> appends = new ArrayList<JSONObject>();
 					for (String follower : followers) {
 						JSONObject append = transactionAppend(follower + "_stream.txt", username + ": " + extraInfo);
@@ -391,33 +387,30 @@ public class TwitterNode extends RPCNode {
 					}
 				}
 			} else { // We heard back from a tweet append. Check if all the appends are back.
+				System.out.println("APPEND");
 				List<UUID> transactionuuids = transactionsmap.remove(uuid);
+				boolean finished = true;
 				if (transactionuuids != null) {
 					// check if the other RPCs in this bundle have finished.
-					boolean finished = true;
 					for (UUID other : transactionuuids) {
 						if (transactionsmap.containsKey(other)) { // TODO: do I need locking here?
 							finished = false;
 						}
 					}
-					if (finished) {
-						waitingForResponse = false;
-						op.display(extraInfo, success);
-						if (commandQueue.size() > 0) {
-							knownCommand(commandQueue.poll());
-						}
+				}
+				if (finished) {
+					System.out.println("done tweeting!!!");
+					waitingForResponse = false;
+					op.display(extraInfo, success);
+					if (commandQueue.size() > 0) {
+						knownCommand(commandQueue.poll());
 					}
 				}			
 			}
 			break;
 		}
 		case READTWEETS: {
-			String[] file;
-			try {
-				file = (String[]) transaction.get("data"); //Assume key "data", assume gives file as one string.
-			} catch (JSONException e) {
-				file = new String[] {"You have no unread tweets."};
-			} 
+			List<String> file = extractFilelines(transaction);
 			StringBuilder sb = new StringBuilder();
 			for (String s : file) {
 				sb.append(s + "\n");
