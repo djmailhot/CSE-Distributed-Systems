@@ -279,7 +279,6 @@ public abstract class RPCNode extends RIONode {
 	 */
   @Override
 	public void onRIOReceive(Integer from, int protocol, byte[] msg) {
-
     if(protocol == Protocol.DATA) {
       try {
         String payload = Utility.byteArrayToString(msg);

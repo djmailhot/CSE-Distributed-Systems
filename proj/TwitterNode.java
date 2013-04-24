@@ -25,6 +25,11 @@ public class TwitterNode extends RPCNode {
 	private String username = "temp";  // TODO: change back to null
 	private int DEST_ADDR = addr == 0? 1 : 0; // Copied from TwoGenerals.java
 	
+	// Ignore disk crashes
+	public static double getFailureRate() { return 0/100.0; }
+	public static double getRecoveryRate() { return 100/100.0; }
+	public static double getDropRate() { return 10/100.0; }
+	public static double getDelayRate() { return 25/100.0; }
 	
 	public TwitterNode() {
 		super();
@@ -303,7 +308,6 @@ public class TwitterNode extends RPCNode {
 
 	@Override
 	public void onRPCResponse(Integer from, JSONObject transaction) {
-		System.out.println("I AM IN ONRPCRESPONSE!!!!!!!!!!!!!!!");
 		UUID uuid = extractUUID(transaction);
 		Pair<TwitterOp, String> p = uuidmap.remove(uuid);
 		if (p == null) { return; } // We are not expecting this response.
