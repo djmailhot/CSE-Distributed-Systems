@@ -78,6 +78,12 @@ public class TwitterNode extends RPCNode {
 		public abstract void display(String param, boolean success);
 	}
 	
+	public void start() {
+		System.out.println("TwitterNode " + addr + " starting.");
+		System.out.println("commandQueue: " + commandQueue);
+		System.out.println("waitingforresponse: " + waitingForResponse);
+		super.start();
+	}
 
 	@Override
 	public void onCommand(String command) {
@@ -203,6 +209,7 @@ public class TwitterNode extends RPCNode {
 	}
 	
 	private void login(String user) {
+		waitingForResponse = true;
 		// CHECK_EXISTENCE of user_followers.txt
 		JSONObject existance = transactionExist(user + "_followers.txt");
 		System.out.println(existance.toString());
@@ -217,6 +224,7 @@ public class TwitterNode extends RPCNode {
 	}
 	
 	private void tweet(String tweet){
+		waitingForResponse = true;
 		// send tweet to server
 		// READ the file user_followers
 		JSONObject read = transactionRead(username + "_followers.txt");
@@ -226,6 +234,7 @@ public class TwitterNode extends RPCNode {
 	}
 	
 	private void readTweets() {
+		waitingForResponse = true;
 		// read tweets from server
 		// READ username_stream
 		// DELETE username_stream // holds only unread tweets
@@ -238,6 +247,7 @@ public class TwitterNode extends RPCNode {
 	}
 	
 	private void follow(String followUserName) {
+		waitingForResponse = true;
 		// tell server to follow followUserName
 		// APPEND username, followUserName_followers
 		JSONObject append = transactionAppend(followUserName + "_followers.txt", username);
@@ -247,6 +257,7 @@ public class TwitterNode extends RPCNode {
 	}
 	
 	private void unfollow(String unfollowUserName) {
+		waitingForResponse = true;
 		// tell server to delete unfollowUserName from following
 		// DELETE_LINE username, unfollowUserName_followers
 		JSONObject delete = transactionDeleteLine(unfollowUserName + "_followers.txt", username);
@@ -256,6 +267,7 @@ public class TwitterNode extends RPCNode {
 	}
 	
 	private void block(String blockUserName) {
+		waitingForResponse = true;
 		// tell server to delete username from blockUserName's following list
 		// DELETE_LINE blockUserName, username_followers
 		JSONObject delete = transactionDeleteLine(username + "_followers.txt", blockUserName);
