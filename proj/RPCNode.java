@@ -21,7 +21,7 @@ import org.json.JSONObject;
 public abstract class RPCNode extends RIONode {
   private static final Logger LOG = Logger.getLogger(RPCNode.class.getName());
 
-  private final NFSService nfsService;
+  protected final NFSService nfsService;
 
   /**
    * Enum to specify the RPC message type.

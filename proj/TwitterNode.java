@@ -1,3 +1,4 @@
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -80,8 +81,14 @@ public class TwitterNode extends RPCNode {
 	
 	public void start() {
 		System.out.println("TwitterNode " + addr + " starting.");
-		System.out.println("commandQueue: " + commandQueue);
-		System.out.println("waitingforresponse: " + waitingForResponse);
+		List<String> file;
+		try {
+			file = nfsService.read("username.txt");
+		} catch (IOException e) {
+			file = null;
+		}
+		username = file == null || file.size() == 0 ? null : file.get(0);
+		System.out.println("username: " + username);
 		super.start();
 	}
 
@@ -219,7 +226,11 @@ public class TwitterNode extends RPCNode {
 	}
 	
 	private void logout() {
-		username = "david";
+		username = null;
+		try {
+			nfsService.delete("username.txt");
+		} catch (IOException e) {
+		}
 		System.out.println("Logout successful.");
 	}
 	
@@ -292,6 +303,7 @@ public class TwitterNode extends RPCNode {
 
 	@Override
 	public void onRPCResponse(Integer from, JSONObject transaction) {
+		System.out.println("I AM IN ONRPCRESPONSE!!!!!!!!!!!!!!!");
 		UUID uuid = extractUUID(transaction);
 		Pair<TwitterOp, String> p = uuidmap.remove(uuid);
 		if (p == null) { return; } // We are not expecting this response.
@@ -335,6 +347,12 @@ public class TwitterNode extends RPCNode {
 				exists = false;
 			}
 			username = exists ? extraInfo : username;
+			if (username != null) {
+				try {
+					nfsService.write("username.txt", username);
+				} catch (IOException e) {
+				}
+			}
 			waitingForResponse = false;
 			op.display(extraInfo, exists);
 			if (commandQueue.size() > 0) {
