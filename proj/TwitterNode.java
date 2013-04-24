@@ -349,7 +349,7 @@ public class TwitterNode extends RPCNode {
 					}
 					List<UUID> uuids = RPCSend(DEST_ADDR, appends);
 					mapUUIDs(uuids, TwitterOp.TWEET, extraInfo);
-				} else {
+				} else { // no followers
 					waitingForResponse = false;
 					op.display(extraInfo, success);
 					if (commandQueue.size() > 0) {
