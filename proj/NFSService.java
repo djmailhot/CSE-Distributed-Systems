@@ -220,6 +220,7 @@ public class NFSService {
    * @return the name of the temp file
    */
   private File newTempFile(String filename) throws IOException {
+    File root = Utility.getFileHandle(node, ".");
     return File.createTempFile(TEMP_FILE_PREFIX, filename, root);
   }
 
@@ -229,7 +230,6 @@ public class NFSService {
    * @return the name of the temp file
    */
   private String copyTempFile(String filename) throws IOException {
-    File root = Utility.getFileHandle(node, ".");
     File tempfile = newTempFile(filename);
     List<String> lines = read(filename);
     for(String line : lines) {
