@@ -15,7 +15,7 @@ import java.util.List;
  * of a particular node.
  */
 public class NFSService {
-  private static final String TEMP_FILE_PREFIX = "_";
+  private static final String TEMP_FILE_PREFIX = "_cow_";
 
   private final Node node;
 
@@ -210,6 +210,7 @@ public class NFSService {
         writer.newLine();
       }
     }
+    writer.close();
 
     return commitTempFile(tempfile, filename);
   }
@@ -230,12 +231,18 @@ public class NFSService {
    * @return the name of the temp file
    */
   private String copyTempFile(String filename) throws IOException {
-    File tempfile = newTempFile(filename);
+    String tempfile = newTempFile(filename).getName();
     List<String> lines = read(filename);
+
+    PersistentStorageWriter writer;
+    writer = node.getWriter(tempfile, true);
     for(String line : lines) {
-      append(tempfile.getName(), line);
+      writer.append(line);
+      writer.newLine();
     }
-    return tempfile.getName();
+    writer.close();
+
+    return tempfile;
   }
 
   /**
