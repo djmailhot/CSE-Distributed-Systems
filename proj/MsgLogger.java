@@ -99,6 +99,7 @@ public class MsgLogger {
 	 */
 	public void deleteLog(int addr, int seqNum, int sendRecv){
 		String filename = getFilename(seqNum, addr, sendRecv);
+		System.out.println("DEEEEELLELEEEEEEEEETINGGGGG!!!!: " + filename);
     try {
       nfs.delete(filename);
     } catch(IOException e) {

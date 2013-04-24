@@ -18,6 +18,7 @@ public abstract class RIONode extends Node {
 	
 	public void start(){
 		RIOLayer = new ReliableInOrderMsgLayer(this);
+		RIOLayer.cleanUpConstruction();
 	}
 	
 	@Override
