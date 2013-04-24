@@ -103,6 +103,8 @@ public class ReliableInOrderMsgLayer {
 				inC.deliverSequence(toBeDelivered);
 				for(RIOPacket p: toBeDelivered) {
 					// deliver in-order the next sequence of packets
+					System.out.println("payload: " + p.getPayload());
+					System.out.println("payload2: " + p.getProtocol());
 					n.onRIOReceive(pair.addr(), p.getProtocol(), p.getPayload());
 				}
 			}
@@ -161,9 +163,7 @@ public class ReliableInOrderMsgLayer {
 		//  logged on the server.  This will help us guarantee at-least-once semantics on
 		//  the msg itself.  Note if a log file already exists for this from/seqNumber combination
 		//  we will not log it again.
-		System.out.println("dr0: " + new String(msg));
 		RIOPacket riopkt = RIOPacket.unpack(msg);
-		System.out.println("dr1: " + riopkt);
 		responseMap.put(RPCNode.extractUUID(riopkt.getPayload()), new SeqLogEntries.AddrSeqPair(from, riopkt.getSeqNum()));
 		boolean alreadyLogged = this.msl.logMsg(from, new String(riopkt.getPayload()), riopkt.getSeqNum(), MsgLogger.RECV);		
 		
@@ -201,9 +201,8 @@ public class ReliableInOrderMsgLayer {
 	 *            The Packet of data
 	 */
 	public void RIOAckReceive(int from, byte[] msg) {
-		System.out.println("ar: " + msg);
 		int seqNum = Integer.parseInt( Utility.byteArrayToString(msg) );
-		System.out.println("ar after");
+		System.out.println("ack: " + Integer.toString(from) + ", " + Integer.toString(seqNum));
 		outConnections.get(from).gotACK(from,seqNum);
 	}
 
@@ -232,14 +231,16 @@ public class ReliableInOrderMsgLayer {
 		
 		//NOTE: if we move to concurrency, will need to synchronize here on out channel to prevent TOC/TOU bug
 		// on next seq number.
-		this.msl.logMsg(destAddr, new String(payload), out.getNextSeqNum(), MsgLogger.SEND);
-		
-		/* Delete the recv log */
-		UUID currentUUID = RPCNode.extractUUID(payload);
-		SeqLogEntries.AddrSeqPair asp = responseMap.get(currentUUID);
-		if(asp != null){
-			this.msl.deleteLog(asp.addr(), asp.seq(), MsgLogger.RECV);
-			responseMap.remove(currentUUID);
+		if(protocol != Protocol.ACK){
+			this.msl.logMsg(destAddr, new String(payload), out.getNextSeqNum(), MsgLogger.SEND);
+			
+			/* Delete the recv log if this is a response */
+			UUID currentUUID = RPCNode.extractUUID(payload);
+			SeqLogEntries.AddrSeqPair asp = responseMap.get(currentUUID);
+			if(asp != null){
+				this.msl.deleteLog(asp.addr(), asp.seq(), MsgLogger.RECV);
+				responseMap.remove(currentUUID);
+			}
 		}
 		
 		out.sendRIOPacket(n, protocol, payload);
