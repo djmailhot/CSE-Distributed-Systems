@@ -48,17 +48,25 @@ public class ReliableInOrderMsgLayer {
 		//Recovering responseMap:
 		PriorityQueue<MsgLogEntry> recvLogsAll = this.msl.getLogs(MsgLogger.RECV);
 		PriorityQueue<MsgLogEntry> sendLogsAll = this.msl.getLogs(MsgLogger.SEND);
+		boolean deletedSomeRecvs = false;
 		for(MsgLogEntry mle: recvLogsAll){
-			RIOPacket rp = RIOPacket.unpack(mle.msg().getBytes());
+			RIOPacket rp = new RIOPacket(Protocol.DATA, mle.seqNum(), mle.msg().getBytes());
 			
 
-			//if we have a matching UUID 
+			//if we have a matching UUID, then we crashed between deleting the recv log, and making the send log for the response.
+			//We have a send log, but the recv log hasn't been deleted.  So we do that now, and don't add this to the responseMap.
+			boolean alreadyResponded = false;
 			for(MsgLogEntry mle2: sendLogsAll){
-				
+				RIOPacket rp2 = new RIOPacket(Protocol.DATA, mle2.seqNum(), mle2.msg().getBytes());
+				if(RPCNode.extractUUID(rp.getPayload()) == RPCNode.extractUUID(rp2.getPayload())){
+				//if(RPCNode.extractUUID(mle.msg().getBytes()) == RPCNode.extractUUID(mle2.msg().getBytes())){
+					alreadyResponded = true;
+					deletedSomeRecvs = true;
+					this.msl.deleteLog(mle2.addr(), mle2.seqNum(), MsgLogger.RECV);
+				}
 			}
 			
-			
-			responseMap.put(RPCNode.extractUUID(rp.getPayload()), new SeqLogEntries.AddrSeqPair(mle.addr(), mle.seqNum()));
+			if(!alreadyResponded) responseMap.put(RPCNode.extractUUID(rp.getPayload()), new SeqLogEntries.AddrSeqPair(mle.addr(), mle.seqNum()));
 			
 		}
 
@@ -68,6 +76,9 @@ public class ReliableInOrderMsgLayer {
 		// If we have recv log files but the number on this file is less than the min sequence number on all log files - 1, then this file is correct (we crashed with packets in out-of-order delivery queue, but this file has the correct number since we processed it successfully with the last delivery).
 		// If we have recv log files and this equals min sequence number of log files - 1, or min sequence number of log files, then set this to the min of the sequence number of log files - 1 since we are about to deliver them.
 		// If logs exist and its greater than all log values, then we have an error: we processed something out of order in an upper layer probably.
+		
+		if(deletedSomeRecvs) recvLogsAll = this.msl.getLogs(MsgLogger.RECV);
+		
 		LinkedList<SeqLogEntries.AddrSeqPair> last_recvs = sle.seq_recv();		
 		for(SeqLogEntries.AddrSeqPair pair: last_recvs){
 			InChannel inC = new InChannel(this.snl, pair.addr());
@@ -154,7 +165,7 @@ public class ReliableInOrderMsgLayer {
 		RIOPacket riopkt = RIOPacket.unpack(msg);
 		System.out.println("dr1: " + riopkt);
 		responseMap.put(RPCNode.extractUUID(riopkt.getPayload()), new SeqLogEntries.AddrSeqPair(from, riopkt.getSeqNum()));
-		boolean alreadyLogged = this.msl.logMsg(from, new String(msg), riopkt.getSeqNum(), MsgLogger.RECV);		
+		boolean alreadyLogged = this.msl.logMsg(from, new String(riopkt.getPayload()), riopkt.getSeqNum(), MsgLogger.RECV);		
 		
 		
 					
@@ -226,7 +237,10 @@ public class ReliableInOrderMsgLayer {
 		/* Delete the recv log */
 		UUID currentUUID = RPCNode.extractUUID(payload);
 		SeqLogEntries.AddrSeqPair asp = responseMap.get(currentUUID);
-		if(asp != null) this.msl.deleteLog(asp.addr(), asp.seq(), MsgLogger.RECV);
+		if(asp != null){
+			this.msl.deleteLog(asp.addr(), asp.seq(), MsgLogger.RECV);
+			responseMap.remove(currentUUID);
+		}
 		
 		out.sendRIOPacket(n, protocol, payload);
 	}
