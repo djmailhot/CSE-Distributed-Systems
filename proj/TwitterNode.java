@@ -212,7 +212,7 @@ public class TwitterNode extends RPCNode {
 	}
 	
 	private void logout() {
-		username = null;
+		username = "david";
 		System.out.println("Logout successful.");
 	}
 	
