@@ -41,9 +41,11 @@ public class MsgLogger {
 		try {
 			
 			List<String> strings = nfs.read(filename);
-			for(String s: strings){
-				contents.concat(s);
-			}
+      if(strings != null) {
+        for(String s: strings){
+          contents.concat(s);
+        }
+      }
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

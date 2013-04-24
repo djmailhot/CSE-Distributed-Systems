@@ -5,6 +5,8 @@ import edu.washington.cs.cse490h.lib.Utility;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -35,8 +37,7 @@ public class NFSService {
    * If the file already exists, nothing happens.
    */
   public void create(String filename) throws IOException {
-    PersistentStorageWriter writer;
-    writer = node.getWriter(filename, false);
+    PersistentStorageWriter writer = node.getWriter(filename, false);
     writer.close();
   }
 
@@ -49,8 +50,7 @@ public class NFSService {
     if(!exists(filename)) {
       return null;
     }
-    PersistentStorageReader reader;
-    reader = node.getReader(filename);
+    PersistentStorageReader reader = node.getReader(filename);
 
     List<String> lines = new ArrayList<String>();
     String line = reader.readLine();	
@@ -71,12 +71,11 @@ public class NFSService {
    * @return true if the write was successful
    */
   public boolean write(String filename, String data) throws IOException {
-    String tempfile = newTempFile(filename).getName();
-    PersistentStorageWriter writer;
-    writer = node.getWriter(tempfile, false);
+    String tempname = newTempFile(filename);
+    PersistentStorageWriter writer = node.getWriter(tempname, false);
     writer.write(data);
     writer.close();
-    return commitTempFile(tempfile, filename);
+    return commitTempFile(tempname, filename);
   }
 
   /**
@@ -88,12 +87,7 @@ public class NFSService {
    * @return true if file was renamed, false if not
    */
   public boolean rename(String oldname, String newname) throws IOException {
-    File oldFile = Utility.getFileHandle(node, oldname);
-    if(!oldFile.exists()) {
-      return false;
-    }
-    File newFile = Utility.getFileHandle(node, newname);
-    return oldFile.renameTo(newFile);
+    return commitTempFile(oldname, newname);
   }
 
   /**
@@ -122,13 +116,12 @@ public class NFSService {
    * @return true if the append was successful
    */
   public boolean append(String filename, String data) throws IOException {
-    String tempfile = copyTempFile(filename);
-    PersistentStorageWriter writer;
-    writer = node.getWriter(tempfile, true);
+    String tempname = copyTempFile(filename);
+    PersistentStorageWriter writer = node.getWriter(tempname, true);
     writer.append(data);
     writer.newLine();
     writer.close();
-    return commitTempFile(tempfile, filename);
+    return commitTempFile(tempname, filename);
   }
 
   /**
@@ -159,8 +152,7 @@ public class NFSService {
     if(!exists(filename)) {
       return false;
     }
-    PersistentStorageWriter writer;
-    writer = node.getWriter(filename, false);
+    PersistentStorageWriter writer = node.getWriter(filename, false);
     boolean success = writer.delete();
     writer.close();
     return success;
@@ -185,20 +177,21 @@ public class NFSService {
     if(!exists(filename)) {
       return false;
     }
-    String tempfile = newTempFile(filename).getName();
+    String tempname = newTempFile(filename);
 
-    PersistentStorageWriter writer;
-    writer = node.getWriter(tempfile, true);
+    PersistentStorageWriter writer = node.getWriter(tempname, true);
     List<String> allLines = read(filename);
-    for(String l : allLines) {
-      if(!l.equals(line)) {
-        writer.append(l);
-        writer.newLine();
+    if(allLines != null) {
+      for(String l : allLines) {
+        if(!l.equals(line)) {
+          writer.append(l);
+          writer.newLine();
+        }
       }
     }
     writer.close();
 
-    return commitTempFile(tempfile, filename);
+    return commitTempFile(tempname, filename);
   }
 
   /**
@@ -206,9 +199,9 @@ public class NFSService {
    *
    * @return the name of the temp file
    */
-  private File newTempFile(String filename) throws IOException {
-    File root = Utility.getFileHandle(node, ".");
-    return File.createTempFile(TEMP_FILE_PREFIX, filename, root);
+  private String newTempFile(String filename) throws IOException {
+    System.out.println("new " + filename);
+    return TEMP_FILE_PREFIX + filename;
   }
 
   /**
@@ -217,18 +210,20 @@ public class NFSService {
    * @return the name of the temp file
    */
   private String copyTempFile(String filename) throws IOException {
-    String tempfile = newTempFile(filename).getName();
+    System.out.println("copy " + filename);
+    String tempname = newTempFile(filename);
     List<String> lines = read(filename);
 
-    PersistentStorageWriter writer;
-    writer = node.getWriter(tempfile, true);
-    for(String line : lines) {
-      writer.append(line);
-      writer.newLine();
+    PersistentStorageWriter writer = node.getWriter(tempname, true);
+    if(lines != null) {
+      for(String line : lines) {
+        writer.append(line);
+        writer.newLine();
+      }
     }
     writer.close();
 
-    return tempfile;
+    return tempname;
   }
 
   /**
@@ -236,9 +231,18 @@ public class NFSService {
    *
    * @return true if the commit was successful
    */
-  private boolean commitTempFile(String tempfile, String origfile) 
+  private boolean commitTempFile(String tempname, String origfile) 
       throws IOException {
-    return rename(tempfile, origfile);
+    System.out.println("commit " + tempname + " --> " + origfile);
+    File oldFile = Utility.getFileHandle(node, tempname);
+    if(!oldFile.exists()) {
+      return false;
+    }
+    File newFile = Utility.getFileHandle(node, origfile);
+    Files.move(oldFile.toPath(), newFile.toPath(), 
+               StandardCopyOption.REPLACE_EXISTING,
+               StandardCopyOption.ATOMIC_MOVE);
+    return true;
   }
 
 }

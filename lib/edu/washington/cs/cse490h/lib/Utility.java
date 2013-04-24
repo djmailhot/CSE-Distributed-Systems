@@ -82,12 +82,12 @@ public class Utility {
 
     public static File getFileHandle(Node n, String filename) {
         File file = new File(realFilename(n.addr, filename));
-        file.getParentFile().mkdirs();
+        //file.getParentFile().mkdirs();
         return file;
     }
 
     public static boolean fileExists(Node n, String filename) {
-        File f = getFileHandle(n, filename);
-        return f.exists();
+        File file = new File(realFilename(n.addr, filename));
+        return file.exists();
     }
 }
