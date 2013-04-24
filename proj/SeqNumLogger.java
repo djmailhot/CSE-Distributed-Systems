@@ -10,7 +10,7 @@ import edu.washington.cs.cse490h.lib.Node;
  */
 public class SeqNumLogger {
 	/* Delimits this type of log */
-	private static final String delim = "$";
+	private static final String delim = "#";
 	
 	/* Used to make a file system */
 	private Node node;
@@ -58,7 +58,7 @@ public class SeqNumLogger {
       boolean alreadyExists = false;
       for(String s : fileNames){
         if(s.charAt(0) == delim.charAt(0) && ((s.charAt(1) == delim.charAt(0) && sendRecv == SEND) || (s.charAt(1) != delim.charAt(0) && sendRecv == RECV))){
-          int currentAddr = Integer.parseInt(s.substring(sendRecv, s.indexOf("$", sendRecv)));
+          int currentAddr = Integer.parseInt(s.substring(sendRecv, s.indexOf(delim, sendRecv)));
           if(currentAddr == addr){
             nfs.rename(s,filename);
             alreadyExists = true;
@@ -87,13 +87,13 @@ public class SeqNumLogger {
 	      for(String s : fileNames){
 	        if(s.charAt(0) == delim.charAt(0)){
 	          if(s.charAt(1) == delim.charAt(0)){
-	            int currentAddr = Integer.parseInt(s.substring(2, s.indexOf("$", 2)));
-	            int currentSeq = Integer.parseInt(s.substring(s.indexOf("$", 2)+1,s.length()-4));
+	            int currentAddr = Integer.parseInt(s.substring(2, s.indexOf(delim, 2)));
+	            int currentSeq = Integer.parseInt(s.substring(s.indexOf(delim, 2)+1,s.length()-4));
 	            seq_sends.add(new SeqLogEntries.AddrSeqPair(currentAddr,currentSeq));
 	          }
 	          else{
-	            int currentAddr = Integer.parseInt(s.substring(1, s.indexOf("$", 1)));
-	            int currentSeq = Integer.parseInt(s.substring(s.indexOf("$", 1)+1,s.length()-4));
+	            int currentAddr = Integer.parseInt(s.substring(1, s.indexOf(delim, 1)));
+	            int currentSeq = Integer.parseInt(s.substring(s.indexOf(delim, 1)+1,s.length()-4));
 	            seq_recvs.add(new SeqLogEntries.AddrSeqPair(currentAddr,currentSeq));
 	          }
 	        }

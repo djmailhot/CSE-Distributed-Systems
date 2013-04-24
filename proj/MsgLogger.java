@@ -15,7 +15,7 @@ public class MsgLogger {
 	
 	/* These are used to mark files so we know they are logs. */
 	private static final String delim_send = "@";
-	private static final String delim_recv = "~";
+	private static final String delim_recv = "%";
 	
 	/* Used to make a file system */
 	private Node node;
@@ -41,11 +41,11 @@ public class MsgLogger {
 		try {
 			
 			List<String> strings = nfs.read(filename);
-      if(strings != null) {
-        for(String s: strings){
-          contents.concat(s);
-        }
-      }
+			if(strings != null) {
+				for(String s: strings){
+					contents = contents.concat(s);
+				}
+			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

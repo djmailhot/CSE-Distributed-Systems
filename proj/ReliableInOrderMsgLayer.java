@@ -46,11 +46,20 @@ public class ReliableInOrderMsgLayer {
 		SeqLogEntries sle = this.snl.getSeqLog();
 		
 		//Recovering responseMap:
-		for(MsgLogEntry mle: this.msl.getLogs(MsgLogger.RECV)){
+		PriorityQueue<MsgLogEntry> recvLogsAll = this.msl.getLogs(MsgLogger.RECV);
+		PriorityQueue<MsgLogEntry> sendLogsAll = this.msl.getLogs(MsgLogger.SEND);
+		for(MsgLogEntry mle: recvLogsAll){
 			RIOPacket rp = RIOPacket.unpack(mle.msg().getBytes());
-			System.out.println("ml init: " + mle.msg());
-			System.out.println("ml init2: " + rp);
+			
+
+			//if we have a matching UUID 
+			for(MsgLogEntry mle2: sendLogsAll){
+				
+			}
+			
+			
 			responseMap.put(RPCNode.extractUUID(rp.getPayload()), new SeqLogEntries.AddrSeqPair(mle.addr(), mle.seqNum()));
+			
 		}
 
 		
@@ -59,12 +68,12 @@ public class ReliableInOrderMsgLayer {
 		// If we have recv log files but the number on this file is less than the min sequence number on all log files - 1, then this file is correct (we crashed with packets in out-of-order delivery queue, but this file has the correct number since we processed it successfully with the last delivery).
 		// If we have recv log files and this equals min sequence number of log files - 1, or min sequence number of log files, then set this to the min of the sequence number of log files - 1 since we are about to deliver them.
 		// If logs exist and its greater than all log values, then we have an error: we processed something out of order in an upper layer probably.
-		LinkedList<SeqLogEntries.AddrSeqPair> last_recvs = sle.seq_recv();
-		
+		LinkedList<SeqLogEntries.AddrSeqPair> last_recvs = sle.seq_recv();		
 		for(SeqLogEntries.AddrSeqPair pair: last_recvs){
 			InChannel inC = new InChannel(this.snl, pair.addr());
 			
 			PriorityQueue<MsgLogEntry> recvLogs = this.msl.getChannelLogs(pair.addr(), MsgLogger.RECV);
+			
 			int currentLast_recv = pair.seq();
 			if(!recvLogs.isEmpty()){
 				int minLogSeqNum = recvLogs.peek().seqNum();
@@ -141,7 +150,7 @@ public class ReliableInOrderMsgLayer {
 		//  logged on the server.  This will help us guarantee at-least-once semantics on
 		//  the msg itself.  Note if a log file already exists for this from/seqNumber combination
 		//  we will not log it again.
-		System.out.println("dr0: " + msg);
+		System.out.println("dr0: " + new String(msg));
 		RIOPacket riopkt = RIOPacket.unpack(msg);
 		System.out.println("dr1: " + riopkt);
 		responseMap.put(RPCNode.extractUUID(riopkt.getPayload()), new SeqLogEntries.AddrSeqPair(from, riopkt.getSeqNum()));
