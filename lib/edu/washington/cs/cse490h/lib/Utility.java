@@ -81,11 +81,13 @@ public class Utility {
     }
 
     public static File getFileHandle(Node n, String filename) {
-        return new File(realFilename(n.addr, filename));
+        File file = new File(realFilename(n.addr, filename));
+        file.getParentFile().mkdirs();
+        return file;
     }
 
     public static boolean fileExists(Node n, String filename) {
-        File f = new File(realFilename(n.addr, filename));
+        File f = getFileHandle(n, filename);
         return f.exists();
     }
 }
