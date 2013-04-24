@@ -108,6 +108,20 @@ public abstract class RPCNode extends RIONode {
     return nfsOperation;
   }
 
+  public static List<String> extractFilelines(JSONObject transaction) {
+    List<String> list = new ArrayList<String>();
+    try {
+      JSONArray filelines = transaction.getJSONArray("filelines");
+      for (int i=0; i<filelines.length(); i++) {
+        list.add( filelines.getString(i) );
+      }
+    } catch(JSONException e) {
+      LOG.warning("JSON parsing error for RPC transaction");
+      e.printStackTrace();
+    }
+    return list;
+  }
+
   /**
    * Create the specified file.
    * @return the transaction, or null if a JSON parsing error
@@ -343,7 +357,7 @@ public abstract class RPCNode extends RIONode {
           break;
         case READ:
           JSONArray returnData = new JSONArray(nfsService.read(filename));
-          response.put("data", returnData);
+          response.put("filelines", returnData);
           break;
         case APPEND:
           String appendData = transaction.getString("data");
@@ -375,7 +389,7 @@ public abstract class RPCNode extends RIONode {
       LOG.severe("File system failure");
       e.printStackTrace();
     } catch(JSONException e) {
-      LOG.severe("Request message incorrectly formatted");
+      LOG.warning("Request message incorrectly formatted");
       e.printStackTrace();
     }
   }
@@ -409,7 +423,7 @@ public abstract class RPCNode extends RIONode {
    *
    * Conditional fields on MessageType:
    * if("messageType" -> MessageType.READ)
-   *   JSONArray "data" - array of strings, each representing a line of the file
+   *   JSONArray "filelines" - array of strings, each a separate line of the file
    * if("messageType" -> MessageType.CHECK)
    *   long "date" - the long representation of a Date object
    *   Boolean "check" - true if the file version is no newer than the
