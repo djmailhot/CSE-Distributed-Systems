@@ -83,6 +83,8 @@ public class MsgLogger {
       // can we make this atomic instead?  Is that possible?
       alreadyLogged = nfs.exists(filename);
       if(!alreadyLogged){
+    	  System.out.println("writing the following: " + msg);
+    	  System.out.println("To: " + filename);
         nfs.write(filename,msg);
       }
     } catch(IOException e) {

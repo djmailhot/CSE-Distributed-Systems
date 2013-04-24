@@ -26,7 +26,7 @@ public class TwitterNode extends RPCNode {
 	private int DEST_ADDR = addr == 0? 1 : 0; // Copied from TwoGenerals.java
 	
 	// Ignore disk crashes
-	public static double getFailureRate() { return 0/100.0; }
+	public static double getFailureRate() { return 0.0/100.0; }
 	public static double getRecoveryRate() { return 100/100.0; }
 	public static double getDropRate() { return 10/100.0; }
 	public static double getDelayRate() { return 10/100.0; }
@@ -310,7 +310,10 @@ public class TwitterNode extends RPCNode {
 	public void onRPCResponse(Integer from, JSONObject transaction) {
 		UUID uuid = extractUUID(transaction);
 		Pair<TwitterOp, String> p = uuidmap.remove(uuid);
-		if (p == null) { return; } // We are not expecting this response.
+		if (p == null) { 
+			this.RIOLayer.responseFinalized(uuid, MsgLogger.RECV); 
+			return;
+		} // We are not expecting this response.
 		
 		TwitterOp op = p.a;
 		String extraInfo = p.b;
@@ -440,5 +443,7 @@ public class TwitterNode extends RPCNode {
 		default:
 			break;
 		}
+		
+		this.RIOLayer.responseFinalized(uuid, MsgLogger.RECV);
 	}
 }

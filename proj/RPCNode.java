@@ -333,6 +333,23 @@ public abstract class RPCNode extends RIONode {
     }
     return uuid;
   }
+  
+  /**
+   * Returns the message type of the specified transaction.
+   * @return the message type, null if none present.
+   */
+  public static MessageType extractMessageType(byte[] msg) {
+    String payload = Utility.byteArrayToString(msg);
+    MessageType mt = null;
+    try {
+      JSONObject transaction = new JSONObject(payload);
+      mt = MessageType.values()[transaction.getInt("messageType")];
+    } catch(JSONException e) {
+      LOG.warning("JSON parsing error for RPC transaction: " + payload);
+      e.printStackTrace();
+    }
+    return mt;
+  }
 
 	/**
 	 * Method that is called by the RPC layer when an RPC Request transaction is 
