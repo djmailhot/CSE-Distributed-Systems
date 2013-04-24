@@ -159,10 +159,12 @@ public abstract class RPCNode extends RIONode {
    * @return the transaction, or null if a JSON parsing error
    */
   public static JSONObject transactionAppend(String filename, String data) {
+    if(data == null) {
+      throw new IllegalArgumentException("passed append data is null");
+    }
     JSONObject transaction = null;
     try {
       transaction = newTransaction(NFSOperation.APPEND.ordinal(), filename);
-      transaction.put("data", data);
     } catch(JSONException e) {
       LOG.warning("JSON parsing error for RPC transaction");
       e.printStackTrace();

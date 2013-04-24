@@ -159,7 +159,7 @@ public class NFSService {
     if(!exists(filename)) {
       return false;
     }
-    PersistentStorageWriter writer = node.getWriter(filename, false);
+    PersistentStorageWriter writer = node.getWriter(filename, true);
     boolean success = writer.delete();
     writer.close();
     return success;

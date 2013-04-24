@@ -22,15 +22,16 @@ import plume.Pair;
  * If this is a problem, it will be easy enough to split them apart again. 
  */
 public class TwitterNode extends RPCNode {
-	private String username = "temp";  // TODO: change back to null
+	private String username = null;  // TODO: change back to null
 	private int DEST_ADDR = addr == 0? 1 : 0; // Copied from TwoGenerals.java
 	
 	// Ignore disk crashes
-	public static double getFailureRate() { return 0.0/100.0; }
+/*
+  public static double getFailureRate() { return 20/100.0; }
 	public static double getRecoveryRate() { return 100/100.0; }
 	public static double getDropRate() { return 10/100.0; }
 	public static double getDelayRate() { return 10/100.0; }
-	
+*/
 	public TwitterNode() {
 		super();
 	}
@@ -92,7 +93,7 @@ public class TwitterNode extends RPCNode {
 		} catch (IOException e) {
 			file = null;
 		}
-		username = file == null || file.size() == 0 ? null : file.get(0);
+		username = (file == null || file.size() == 0) ? null : file.get(0);
 		System.out.println("username: " + username);
 		super.start();
 	}
@@ -125,7 +126,7 @@ public class TwitterNode extends RPCNode {
 				}
 			}
 			return true;
-		} else if (commandName.equals("logout")) {
+		} else if (commandName.equals("logout") && username != null) {
 			if (waitingForResponse) {
 				System.out.println("Please wait!!");
 				commandQueue.offer(command);
@@ -145,7 +146,7 @@ public class TwitterNode extends RPCNode {
 				}
 			}
 			return true;
-		} else if (commandName.equals("tweet")) {
+		} else if (commandName.equals("tweet") && username != null) {
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a tweet.");
 			}
@@ -156,7 +157,7 @@ public class TwitterNode extends RPCNode {
 				tweet(command.substring(5).trim());
 			}
 			return true;
-		} else if (commandName.equals("readtweets")) {
+		} else if (commandName.equals("readtweets") && username != null) {
 			if (waitingForResponse) {
 				System.out.println("Please wait!!");
 				commandQueue.offer(command);
@@ -164,7 +165,7 @@ public class TwitterNode extends RPCNode {
 				readTweets();
 			}
 			return true;
-		} else if (commandName.equals("follow")) {
+		} else if (commandName.equals("follow") && username != null) {
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a username.");
 			} else {
@@ -176,7 +177,7 @@ public class TwitterNode extends RPCNode {
 				}
 			} 
 			return true;
-		} else if (commandName.equals("unfollow")) {
+		} else if (commandName.equals("unfollow") && username != null) {
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a username.");
 			} else {
@@ -188,7 +189,7 @@ public class TwitterNode extends RPCNode {
 				}
 			}
 			return true;
-		} else if (commandName.equals("block")) {
+		} else if (commandName.equals("block") && username != null) {
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a username.");
 			} else {
@@ -231,9 +232,9 @@ public class TwitterNode extends RPCNode {
 	}
 	
 	private void logout() {
-		username = null;
 		try {
 			nfsService.delete("username.txt");
+      username = null;
 		} catch (IOException e) {
 		}
 		System.out.println("Logout successful.");
