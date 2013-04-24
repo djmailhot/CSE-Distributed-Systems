@@ -15,7 +15,7 @@ import java.util.List;
  * of a particular node.
  */
 public class NFSService {
-  private static final String TEMP_FILE_SUFFIX = ".tmp";
+  private static final String TEMP_FILE_PREFIX = "_";
 
   private final Node node;
 
@@ -71,7 +71,7 @@ public class NFSService {
    * @return true if the write was successful
    */
   public boolean write(String filename, String data) throws IOException {
-    String tempfile = filename + TEMP_FILE_SUFFIX;
+    String tempfile = newTempFile(filename).getName();
     PersistentStorageWriter writer;
     writer = node.getWriter(tempfile, false);
     writer.write(data);
@@ -185,11 +185,28 @@ public class NFSService {
     if(!exists(filename)) {
       return false;
     }
+    String tempfile = newTempFile(filename).getName();
+
     PersistentStorageWriter writer;
-    writer = node.getWriter(filename, false);
-    boolean success = writer.delete();
-    writer.close();
-    return success;
+    writer = node.getWriter(tempfile, true);
+    List<String> allLines = read(filename);
+    for(String l : allLines) {
+      if(!l.equals(line)) {
+        writer.append(l);
+        writer.newLine();
+      }
+    }
+
+    return commitTempFile(tempfile, filename);
+  }
+
+  /**
+   * Prep a temp file for writing.
+   *
+   * @return the name of the temp file
+   */
+  private File newTempFile(String filename) throws IOException {
+    return File.createTempFile(TEMP_FILE_PREFIX, filename, root);
   }
 
   /**
@@ -199,12 +216,12 @@ public class NFSService {
    */
   private String copyTempFile(String filename) throws IOException {
     File root = Utility.getFileHandle(node, ".");
-    File tempfile = File.createTempFile(filename, TEMP_FILE_SUFFIX, root);
+    File tempfile = newTempFile(filename);
     List<String> lines = read(filename);
     for(String line : lines) {
       append(tempfile.getName(), line);
     }
-    return filename + TEMP_FILE_SUFFIX;
+    return tempfile.getName();
   }
 
   /**
