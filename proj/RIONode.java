@@ -13,6 +13,10 @@ public abstract class RIONode extends Node {
 	private ReliableInOrderMsgLayer RIOLayer;
 	
 	public RIONode() {
+		
+	}
+	
+	public void start(){
 		RIOLayer = new ReliableInOrderMsgLayer(this);
 	}
 	

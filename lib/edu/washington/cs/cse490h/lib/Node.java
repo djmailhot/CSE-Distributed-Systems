@@ -274,6 +274,7 @@ public abstract class Node {
 	 */
 	public void handleDiskReadEvent(String synDescription) {
 		// Notify manager of this read event.
+		System.out.println("hdre: " + manager + ", " + synDescription);
 		manager.storageReadEvent(this, synDescription);
 	}
 

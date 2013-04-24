@@ -43,12 +43,20 @@ public class ReliableInOrderMsgLayer {
 		this.msl = new MsgLogger(n);
 		this.snl = new SeqNumLogger(n);
 		
+		System.out.println("blah0");
+		
 		SeqLogEntries sle = this.snl.getSeqLog();
+		
+		System.out.println("blah1");
 		
 		//Recovering responseMap:
 		for(MsgLogEntry mle: this.msl.getLogs(MsgLogger.RECV)){
+			System.out.println("blah1.4");
 			responseMap.put(RPCNode.extractUUID(mle.msg().getBytes()), new SeqLogEntries.AddrSeqPair(mle.addr(), mle.seqNum()));
+			System.out.println("blah1.5");
 		}
+		
+		System.out.println("blah2");
 		
 		//Recovering recvd/in side:
 		// If we have no recv log files, then the number in sle is correct since we finished processing the last msg and therefore set this properly.
@@ -87,7 +95,7 @@ public class ReliableInOrderMsgLayer {
 			inConnections.put(pair.addr(), inC);
 		}
 		
-		
+		System.out.println("blah3");
 		
 		//Recovering last sent index:
 		// We have one such index for each out channel, so we have (seq_num, destAddr) tuples.
@@ -95,9 +103,20 @@ public class ReliableInOrderMsgLayer {
 		// If version on file < max sequence numbers on log, take the max sequence number on logs.  That means we logged but then crashed before updating the pointer.  In this case, just take the last one on the logs.  Logging happens first.
 		LinkedList<SeqLogEntries.AddrSeqPair> last_sends = sle.seq_send();
 		
+		System.out.println("blah3.1");
+		
 		for(SeqLogEntries.AddrSeqPair pair: last_sends){
+			
+			System.out.println("blah3.11");
+			
 			OutChannel outC = new OutChannel(this.snl, this.msl, this, pair.addr());
+			
+			System.out.println("blah3.121: " + pair);
+			System.out.println("blah3.122: " + pair.addr());
+			
 			PriorityQueue<MsgLogEntry> sendLogs = this.msl.getChannelLogs(pair.addr(), MsgLogger.SEND);
+			
+			System.out.println("blah3.2");
 			
 			int maxLogSeqNum = -1;
 			if(!sendLogs.isEmpty()){
@@ -107,6 +126,8 @@ public class ReliableInOrderMsgLayer {
 			if(pair.seq() < maxLogSeqNum) outC.lastSeqNumSent = maxLogSeqNum;
 			else outC.lastSeqNumSent = pair.seq();
 			
+			System.out.println("blah3.5");
+			
 			//these transactions were not ACKd and possibly not sent.  Add them to the resend cycles and unACKd queue.
 			for(MsgLogEntry mle: sendLogs){
 				try{					
@@ -115,13 +136,16 @@ public class ReliableInOrderMsgLayer {
 					RIOPacket newPkt = new RIOPacket(Protocol.DATA, mle.seqNum(), mle.msg().getBytes());
 					outC.unACKedPackets.put(mle.seqNum(), newPkt);
 					
+					System.out.println("blah3.7");
+					
 					n.send(pair.addr(), Protocol.DATA, newPkt.pack());
 					n.addTimeout(new Callback(onTimeoutMethod, this, new Object[]{ pair.addr(), mle.seqNum() }), ReliableInOrderMsgLayer.TIMEOUT);
 				}catch(Exception e) {
 					e.printStackTrace();
 				}
 			}
-		}	
+		}
+		System.out.println("blah4");
 	}
 	
 	/**
@@ -176,6 +200,8 @@ public class ReliableInOrderMsgLayer {
 	 */
 	public void RIOAckReceive(int from, byte[] msg) {
 		int seqNum = Integer.parseInt( Utility.byteArrayToString(msg) );
+		System.out.println("rioack: " + outConnections);
+		System.out.println("rioack: " + outConnections.get(from));
 		outConnections.get(from).gotACK(from,seqNum);
 	}
 

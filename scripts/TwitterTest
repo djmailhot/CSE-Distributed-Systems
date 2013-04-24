@@ -2,6 +2,13 @@ start 0
 start 1
 time
 0 create steph
+0 create matt
+time
+0 login matt
+time
+0 follow steph
+time
+0 logout
 time
 0 login steph
 time
@@ -10,4 +17,8 @@ time
 0 readtweets
 time
 0 logout
+time
+0 login matt
+time 
+0 readtweets
 0 fake_command

@@ -78,11 +78,6 @@ public class TwitterNode extends RPCNode {
 		public abstract void display(String param, boolean success);
 	}
 	
-	@Override
-	public void start() {
-		// TODO Auto-generated method stub
-		
-	}
 
 	@Override
 	public void onCommand(String command) {
@@ -354,7 +349,7 @@ public class TwitterNode extends RPCNode {
 					}
 					List<UUID> uuids = RPCSend(DEST_ADDR, appends);
 					mapUUIDs(uuids, TwitterOp.TWEET, extraInfo);
-				} else {
+				} else { // no followers
 					waitingForResponse = false;
 					op.display(extraInfo, success);
 					if (commandQueue.size() > 0) {
