@@ -21,11 +21,12 @@ import org.json.JSONObject;
  * New NFSTransaction objects are constructed using a builder pattern.
  * For example:
  * NFSTransaction.Builder(tid)
- *               .createFile(filename)
- *               .appendLine(filename,dataline)
+ *               .createFile(filename1)
+ *               .appendLine(filename2,dataline)
+ *               .touchFile(filename3)
  *               .build();
- * would return a NFSTransaction object representing one create file and one 
- * append data filesystem operation.
+ * would return a NFSTransaction object representing a create file and an 
+ * append data filesystem operation as well as a file read dependency.
  */
 public class NFSTransaction {
 
@@ -40,13 +41,14 @@ public class NFSTransaction {
         this.ops = Collections.unmodifiableList(b.ops);
     }
 
+
     // TODO: NOT FINISHED
-    public static byte[] serialize(NFSTransaction t) {
+    public byte[] serialize() {
         JSONObject jsonObj = new JSONObject();
-        jsonObj.put("tid", t.tid);
+        jsonObj.put("tid", tid);
 
         JSONArray opsArray = new JSONArray();
-        for(NFSOperation op : t.ops) {
+        for(NFSOperation op : ops) {
 
         }
         return null;
@@ -84,6 +86,7 @@ public class NFSTransaction {
      * Enum to specify the NFS operation type.
      */
     public static enum NFSOpType {
+      TOUCHFILE("TOUCHFILE"),
       CREATEFILE("CREATEFILE"),
       APPENDLINE("APPENDLINE"),
       DELETEFILE("DELETEFILE"),
@@ -96,7 +99,8 @@ public class NFSTransaction {
       }
 
       public static NFSOpType fromString(String value) {
-        if(value.equals(CREATEFILE.value)) { return CREATEFILE; }
+        if(value.equals(TOUCHFILE.value)) { return TOUCHFILE; }
+        else if(value.equals(CREATEFILE.value)) { return CREATEFILE; }
         else if(value.equals(APPENDLINE.value)) { return APPENDLINE; }
         else if(value.equals(DELETEFILE.value)) { return DELETEFILE; }
         else if(value.equals(DELETELINE.value)) { return DELETELINE; }
@@ -107,7 +111,7 @@ public class NFSTransaction {
     }
 
     /**
-     * Builder to generate a NFSTransaction.
+     * Builder methods to generate a NFSTransaction.
      */
     public static class Builder {
         private final int tid;
@@ -116,6 +120,10 @@ public class NFSTransaction {
         public Builder(int tid) {
             this.tid = tid;
             this.ops = new ArrayList<NFSOperation>();
+        }
+
+        public Builder touchFile(String filename) {
+            ops.add(new NFSOperation(NFSOpType.TOUCHFILE, filename));
         }
 
         public Builder createFile(String filename) {
@@ -138,5 +146,4 @@ public class NFSTransaction {
             return new NFSTransaction(this);
         }
     }
-
 }
