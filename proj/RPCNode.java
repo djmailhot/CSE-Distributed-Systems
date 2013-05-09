@@ -21,8 +21,6 @@ import org.json.JSONObject;
 public abstract class RPCNode extends RIONode {
   private static final Logger LOG = Logger.getLogger(RPCNode.class.getName());
 
-  protected final NFSService nfsService;
-
   /**
    * Enum to specify the RPC message type.
    */
@@ -36,214 +34,13 @@ public abstract class RPCNode extends RIONode {
     }
   }
 
-  /**
-   * Enum to specify the RPC operation name.
-   */
-  public static enum NFSOperation {
-    CREATE, READ, APPEND, CHECK, DELETE, EXISTS, DELETELINE;
-
-    public static NFSOperation fromInt(int value) {
-      if(value == CREATE.ordinal()) { return CREATE; }
-      else if(value == READ.ordinal()) { return READ; }
-      else if(value == APPEND.ordinal()) { return APPEND; }
-      else if(value == CHECK.ordinal()) { return CHECK; }
-      else if(value == DELETE.ordinal()) { return DELETE; }
-      else if(value == EXISTS.ordinal()) { return EXISTS; }
-      else if(value == DELETELINE.ordinal()) { return EXISTS; }
-      else { return null; }
-    }
-  }
-
   public RPCNode() {
     super();
-    this.nfsService = new NFSService(this);
   }
 
 	//----------------------------------------------------------------------------
 	// transaction routines
 	//----------------------------------------------------------------------------
-
-  /**
-   * Returns the UUID of the specified transaction.
-   * @return the UUID, or null if none present
-   */
-  public static UUID extractUUID(JSONObject transaction) {
-    UUID uuid = null;
-    try {
-      uuid = UUID.fromString(transaction.getString("uuid"));
-    } catch(JSONException e) {
-      LOG.warning("JSON parsing error for RPC transaction");
-      e.printStackTrace();
-    }
-    return uuid;
-  }
-
-  /**
-   * Returns the MessageType of the specified transaction.
-   * @return the MessageType, or null if none present
-   */
-  public static MessageType extractMessageType(JSONObject transaction) {
-    MessageType messageType = null;
-    try {
-      messageType = MessageType.fromInt(transaction.getInt("messageType"));
-    } catch(JSONException e) {
-      LOG.warning("JSON parsing error for RPC transaction");
-      e.printStackTrace();
-    }
-    return messageType;
-  }
-
-  /**
-   * Returns the NFSOperation of the specified transaction.
-   * @return the NFSOperation, or null if none present
-   */
-  public static NFSOperation extractNFSOperation(JSONObject transaction) {
-    NFSOperation nfsOperation = null;
-    try {
-      nfsOperation = NFSOperation.fromInt(transaction.getInt("operation"));
-    } catch(JSONException e) {
-      LOG.warning("JSON parsing error for RPC transaction");
-      e.printStackTrace();
-    }
-    return nfsOperation;
-  }
-
-  public static List<String> extractFilelines(JSONObject transaction) {
-    List<String> list = new ArrayList<String>();
-    try {
-      JSONArray filelines = transaction.getJSONArray("filelines");
-      for (int i=0; i<filelines.length(); i++) {
-        list.add( filelines.getString(i) );
-      }
-    } catch(JSONException e) {
-      LOG.warning("JSON parsing error for RPC transaction");
-      e.printStackTrace();
-    }
-    return list;
-  }
-
-  /**
-   * Create the specified file.
-   * @return the transaction, or null if a JSON parsing error
-   */
-  public static JSONObject transactionCreate(String filename) {
-    JSONObject transaction = null;
-    try {
-      transaction = newTransaction(NFSOperation.CREATE.ordinal(), filename);
-    } catch(JSONException e) {
-      LOG.warning("JSON parsing error for RPC transaction");
-      e.printStackTrace();
-    }
-    return transaction;
-  }
-
-  /**
-   * Read the specified file.
-   * @return the transaction, or null if a JSON parsing error
-   */
-  public static JSONObject transactionRead(String filename) {
-    JSONObject transaction = null;
-    try {
-      transaction = newTransaction(NFSOperation.READ.ordinal(), filename);
-    } catch(JSONException e) {
-      LOG.warning("JSON parsing error for RPC transaction");
-      e.printStackTrace();
-    }
-    return transaction;
-  }
-
-  /**
-   * Append the specified string to the specified file.
-   * The string will be followed by a newline, such that repeated append
-   * calls will be written to separate lines.
-   * @return the transaction, or null if a JSON parsing error
-   */
-  public static JSONObject transactionAppend(String filename, String data) {
-    if(data == null) {
-      throw new IllegalArgumentException("passed append data is null");
-    }
-    JSONObject transaction = null;
-    try {
-      transaction = newTransaction(NFSOperation.APPEND.ordinal(), filename);
-    } catch(JSONException e) {
-      LOG.warning("JSON parsing error for RPC transaction");
-      e.printStackTrace();
-    }
-    return transaction;
-  }
-
-  /**
-   * Check that the version of the specified file is not newer than the
-   * specified date.
-   * @return the transaction, or null if a JSON parsing error
-   */
-  public static JSONObject transactionCheck(String filename, Date date) {
-    JSONObject transaction = null;
-    try {
-      transaction = newTransaction(NFSOperation.CHECK.ordinal(), filename);
-      transaction.put("date", date.getTime());
-    } catch(JSONException e) {
-      LOG.warning("JSON parsing error for RPC transaction");
-      e.printStackTrace();
-    }
-    return transaction;
-  }
-
-  /**
-   * Delete the specified file.
-   * @return the transaction, or null if a JSON parsing error
-   */
-  public static JSONObject transactionDelete(String filename) {
-    JSONObject transaction = null;
-    try {
-      transaction = newTransaction(NFSOperation.DELETE.ordinal(), filename);
-    } catch(JSONException e) {
-      LOG.warning("JSON parsing error for RPC transaction");
-      e.printStackTrace();
-    }
-    return transaction;
-  }
-
-  /**
-   * Delete all lines matching the specified line in the specified file.
-   * @return the transaction, or null if a JSON parsing error
-   */
-  public static JSONObject transactionDeleteLine(String filename, String line) {
-    JSONObject transaction = null;
-    try {
-      transaction = newTransaction(NFSOperation.DELETELINE.ordinal(), filename);
-      transaction.put("line", line);
-    } catch(JSONException e) {
-      LOG.warning("JSON parsing error for RPC transaction");
-      e.printStackTrace();
-    }
-    return transaction;
-  }
-
-  /**
-   * Check if the specified file exists.
-   * @return the transaction, or null if a JSON parsing error
-   */
-  public static JSONObject transactionExist(String filename) {
-    JSONObject transaction = null;
-    try {
-      transaction = newTransaction(NFSOperation.EXISTS.ordinal(), filename);
-    } catch(JSONException e) {
-      LOG.warning("JSON parsing error for RPC transaction");
-      e.printStackTrace();
-    }
-    return transaction;
-  }
-
-  private static JSONObject newTransaction(int operation, String filename)
-        throws JSONException {
-    JSONObject t = new JSONObject();
-    t.put("operation", operation);
-    t.put("messageType", MessageType.REQUEST.ordinal());
-    t.put("filename", filename);
-    t.put("uuid", UUID.randomUUID().toString());
-    return t;
-  }
 
 	//----------------------------------------------------------------------------
 	// send routines
@@ -257,26 +54,9 @@ public abstract class RPCNode extends RIONode {
 	 * @param transaction
 	 *            The transaction to send
 	 */
-  public void RPCSend(int destAddr, JSONObject transaction) {
-    byte[] payload = Utility.stringToByteArray(transaction.toString());
+  public void RPCSend(int destAddr, MVCNode.MVCBundle bundle) {
+    byte[] payload = bundle.serialize();
     RIOSend(destAddr, Protocol.DATA, payload);
-  }
-
-	/**
-	 * Send a bundle of RPC transactions over to a remote node
-	 * 
-	 * @param destAddr
-	 *            The address to send to
-	 * @param bundle
-	 *            The bundle of transactions to send
-	 */
-  public List<UUID> RPCSend(int destAddr, List<JSONObject> bundle) {
-    List<UUID> uuidList = new ArrayList<UUID>();
-    for(JSONObject transaction : bundle) {
-      uuidList.add(extractUUID(transaction));
-      RPCSend(destAddr, transaction);
-    }
-    return uuidList;
   }
 
 	//----------------------------------------------------------------------------
@@ -364,63 +144,7 @@ public abstract class RPCNode extends RIONode {
 	 *            The RPC transaction that was received
 	 */
   public void onRPCRequest(Integer from, JSONObject transaction) {
-    try {
-      String filename = transaction.getString("filename");
-      JSONObject response = prepareResponse(transaction);
-
-      NFSOperation nfsOperation = extractNFSOperation(transaction);
-      switch (nfsOperation) {
-        case CREATE:
-          nfsService.create(filename);
-          break;
-        case READ:
-          List<String> filelines = nfsService.read(filename);
-          response.put("filelines", filelines);
-          break;
-        case APPEND:
-          String appendData = transaction.getString("data");
-          nfsService.append(filename, appendData);
-          break;
-        case CHECK:
-          long time = transaction.getLong("date");
-          Date date = new Date(time);
-          boolean check = nfsService.check(filename, date);
-          response.put("date", time);
-          response.put("check", check);
-          break;
-        case DELETE:
-          nfsService.delete(filename);
-          break;
-        case EXISTS:
-          boolean exists = nfsService.exists(filename);
-          response.put("exists", exists);
-          break;
-        case DELETELINE:
-          String line = response.getString("line");
-          nfsService.deleteLine(filename, line);
-          break;
-        default:
-          LOG.warning("Received invalid operation type");
-      }
-      RPCSend(from, response);
-    } catch(IOException e) {
-      LOG.severe("File system failure");
-      e.printStackTrace();
-    } catch(JSONException e) {
-      LOG.warning("Request message incorrectly formatted");
-      e.printStackTrace();
-    }
-  }
-
-  private JSONObject prepareResponse(JSONObject request) throws JSONException {
-    JSONObject response = new JSONObject();
-    UUID uuid = extractUUID(request);
-    response.put("uuid", uuid.toString());
-    response.put("messageType", MessageType.RESPONSE.ordinal());
-    response.put("filename", request.getString("filename"));
-    response.put("operation", request.getInt("operation")); // TODO!!! this is not actually a string.
-
-    return response;
+    //TODO: do something rad
   }
 
 	/**

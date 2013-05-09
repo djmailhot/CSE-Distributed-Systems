@@ -17,7 +17,7 @@ import java.util.List;
  * of a particular node.
  */
 public class NFSService {
-  private static final String TEMP_FILE_PREFIX = "_cow_";
+  private static final String TEMP_FILE_PREFIX = "_cow_"; // commit on write
 
   private final Node node;
 
