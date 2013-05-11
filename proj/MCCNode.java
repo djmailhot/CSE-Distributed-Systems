@@ -10,13 +10,13 @@ import java.util.List;
 import java.util.logging.Logger;
 
 /**
- * The MVCNode module gives MultiVersion Control over the Named File 
- * Storage of a particular node.
+ * The MCCNode module gives Multiversion Concurrency Control over the 
+ * Named File Storage of a particular node.
  *
  * It uses discrete Transactions to jump from one version to the next.
  */
-public abstract class MVCNode extends RPCNode {
-  private static final Logger LOG = Logger.getLogger(MVCNode.class.getName());
+public abstract class MCCNode extends RPCNode {
+  private static final Logger LOG = Logger.getLogger(MCCNode.class.getName());
 
   private static final String METAFILE = "METAFILE";
 
@@ -26,12 +26,12 @@ public abstract class MVCNode extends RPCNode {
   /**
    * Create a new Multiversioned Name File Storage Node.
    */
-  public MVCNode() {
+  public MCCNode() {
     this.nfsService = new NFSService(this);
   }
 
 	//----------------------------------------------------------------------------
-	// MVC filesystem commands accessing local files
+	// MCC filesystem commands accessing local files
 	//----------------------------------------------------------------------------
 
   /**
@@ -72,7 +72,7 @@ public abstract class MVCNode extends RPCNode {
    *
    * @param destAddr the address of the target remote node.
    *
-   * Will recive a response through the onMVCResponse callback method.
+   * Will recive a response through the onMCCResponse callback method.
    */
   public void updateAllFiles(int destAddr) {
     //TODO: Rainbow Dash
@@ -84,7 +84,7 @@ public abstract class MVCNode extends RPCNode {
    * @param destAddr the address of the target remote node.
    * @param transaction the filesystem transaction to commit.
    *
-   * Will recive a response through the onMVCResponse callback method.
+   * Will recive a response through the onMCCResponse callback method.
    */
   public void commitTransaction(int destAddr, NFSTransaction transaction) {
     //TODO: Twilight Sparkle
@@ -103,7 +103,7 @@ public abstract class MVCNode extends RPCNode {
 	/**
 	 * Method that is called by the RPC layer when an RPC Request bundle is 
    * received.
-   * Request bundles are MVC invocations on a remote node.
+   * Request bundles are MCC invocations on a remote node.
 	 * 
 	 * @param from
 	 *            The address from which the message was received
@@ -113,7 +113,7 @@ public abstract class MVCNode extends RPCNode {
    * @param transaction
    *            The filesystem transaction to send.
 	 */
-  public void onMVCRequest(Integer from, List<MVCFileData> filelist, 
+  public void onMCCRequest(Integer from, List<MCCFileData> filelist, 
                            NFSTransaction transaction) {
     //TODO: make this actually work
     RPCBundle response = null;
@@ -144,7 +144,7 @@ public abstract class MVCNode extends RPCNode {
   }
 
 	/**
-	 * Method that is called by the MVC layer when a response is received
+	 * Method that is called by the MCC layer when a response is received
    * after a updateAllFiles or a commitTransaction request.
    * Responses are replies to Requests.
 	 * 
@@ -156,7 +156,7 @@ public abstract class MVCNode extends RPCNode {
 	 *            True if the specified transaction was successful
    *
 	 */
-  public abstract void onMVCResponse(Integer from, int tid, boolean success);
+  public abstract void onMCCResponse(Integer from, int tid, boolean success);
 
 
 

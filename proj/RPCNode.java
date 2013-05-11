@@ -180,7 +180,7 @@ public abstract class RPCNode extends RIONode {
   public static class RPCBundle {
     public final MessageType type;
     public final NFSTransaction transaction;
-    public final List<MVCFileData> filelist;
+    public final List<MCCFileData> filelist;
 
     /**
      * Wrapper around a file version list and a filesystem transaction.
@@ -191,7 +191,7 @@ public abstract class RPCNode extends RIONode {
      * @param transaction
      *            The filesystem transaction to send.
      */
-    public RPCBundle(List<MVCFileData> filelist, NFSTransaction transaction,
+    public RPCBundle(List<MCCFileData> filelist, NFSTransaction transaction,
                      MessageType type) {
       this.filelist = filelist;
       this.transaction = transaction;
