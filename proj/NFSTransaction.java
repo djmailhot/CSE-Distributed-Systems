@@ -1,9 +1,5 @@
 import java.util.*;
 
-import org.json.JSONException;
-import org.json.JSONArray;
-import org.json.JSONObject;
-
 /**
  * Represents an atomic filesystem transaction.
  *
@@ -11,8 +7,11 @@ import org.json.JSONObject;
  * operations that make up this transaction.  Filesystem operations
  * contained in transactions are always write operations.
  *
- * @specfield tid : int  // the unique transaction id
+ * @specfield tid : int  // the unique transaction id.  Must be positive
  * @specfield ops : List<NFSOperation>  // a list of filesystem operations
+ *
+ * Abstraction Invariant:
+ *  AI(r):  r.tid > 0 && r.ops != null && !r.ops.contains(null)
  *
  * The unique transaction id should be the id of the twitter command
  * that produced this transaction.  To generate a unique id, use
@@ -39,26 +38,12 @@ public class NFSTransaction {
     private NFSTransaction(Builder b) {
         this.tid = tid;
         this.ops = Collections.unmodifiableList(b.ops);
+        assert(checkRep());
     }
 
-
-    // TODO: NOT FINISHED
-    public byte[] serialize() {
-        JSONObject jsonObj = new JSONObject();
-        jsonObj.put("tid", tid);
-
-        JSONArray opsArray = new JSONArray();
-        for(NFSOperation op : ops) {
-
-        }
-        return null;
+    private boolean checkRep() {
+      return tid > 0 && ops != null && !ops.contains(null);
     }
-
-    // TODO: NOT FINISHED
-    public static NFSTransaction deserialize(byte[] data) {
-        return null;
-    }
-    
 
     /**
      * A NFSOperation object represents a single filesystem operation.
@@ -72,6 +57,7 @@ public class NFSTransaction {
         public final String dataline;
 
         public NFSOperation(NFSOpType opType, String filename, String dataline) {
+
             this.opType = opType;
             this.filename = filename;
             this.dataline = dataline;

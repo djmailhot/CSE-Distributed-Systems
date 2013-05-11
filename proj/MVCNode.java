@@ -18,7 +18,6 @@ import java.util.logging.Logger;
 public abstract class MVCNode extends RPCNode {
   private static final Logger LOG = Logger.getLogger(MVCNode.class.getName());
 
-  private static final String TEMP_FILE_PREFIX = "_cow_"; // commit on write
   private static final String METAFILE = "METAFILE";
 
   protected final NFSService nfsService;
@@ -31,30 +30,9 @@ public abstract class MVCNode extends RPCNode {
     this.nfsService = new NFSService(this);
   }
 
-  /**
-   * Update all files on this NFS file system to match the most recent
-   * versions on the specified remote node.
-   *
-   * @param destAddr the address of the target remote node.
-   *
-   * Will recive a response through the onMVCResponse callback method.
-   */
-  public void updateAllFiles(int destAddr) {
-    //TODO: Rainbow Dash
-  }
-
-  /**
-   * Commit the specified transaction to the specified remote node.
-   *
-   * @param destAddr the address of the target remote node.
-   * @param transaction the filesystem transaction to commit.
-   *
-   * Will recive a response through the onMVCResponse callback method.
-   */
-  public void commitTransaction(int destAddr, NFSTransaction transaction) {
-    //TODO: Twilight Sparkle
-  }
-
+	//----------------------------------------------------------------------------
+	// MVC filesystem commands accessing local files
+	//----------------------------------------------------------------------------
 
   /**
    * Read the specified file.
@@ -84,8 +62,44 @@ public abstract class MVCNode extends RPCNode {
     return nfsService.exists(filename);
   }
 
+	//----------------------------------------------------------------------------
+	// send routines
+	//----------------------------------------------------------------------------
 
+  /**
+   * Update all files on this NFS file system to match the most recent
+   * versions on the specified remote node.
+   *
+   * @param destAddr the address of the target remote node.
+   *
+   * Will recive a response through the onMVCResponse callback method.
+   */
+  public void updateAllFiles(int destAddr) {
+    //TODO: Rainbow Dash
+  }
 
+  /**
+   * Commit the specified transaction to the specified remote node.
+   *
+   * @param destAddr the address of the target remote node.
+   * @param transaction the filesystem transaction to commit.
+   *
+   * Will recive a response through the onMVCResponse callback method.
+   */
+  public void commitTransaction(int destAddr, NFSTransaction transaction) {
+    //TODO: Twilight Sparkle
+  }
+
+	//----------------------------------------------------------------------------
+	// receive routines
+	//----------------------------------------------------------------------------
+
+  public void onRPCRequest(Integer from, RPCBundle bundle) {
+
+  }
+  public void onRPCResponse(Integer from, RPCBundle bundle) {
+
+  }
 	/**
 	 * Method that is called by the RPC layer when an RPC Request bundle is 
    * received.
@@ -93,12 +107,16 @@ public abstract class MVCNode extends RPCNode {
 	 * 
 	 * @param from
 	 *            The address from which the message was received
-	 * @param transaction
-	 *            The RPC transaction that was received
+   * @param filelist
+   *            A list of files and version numbers.
+   *            The file contents are not used.
+   * @param transaction
+   *            The filesystem transaction to send.
 	 */
-  public void onMVCRequest(Integer from, NFSTransaction transaction) {
+  public void onMVCRequest(Integer from, List<MVCFileData> filelist, 
+                           NFSTransaction transaction) {
     //TODO: make this actually work
-    MVCBundle response = null;
+    RPCBundle response = null;
     for(NFSTransaction.NFSOperation op : transaction.ops) {
       try {
         switch (op.opType) {
@@ -117,12 +135,12 @@ public abstract class MVCNode extends RPCNode {
           default:
             LOG.warning("Received invalid operation type");
         }
-        RPCSend(from, response);
       } catch(IOException e) {
         LOG.severe("File system failure");
         e.printStackTrace();
       }
     }
+    RPCSendResponse(from, response);
   }
 
 	/**
@@ -132,17 +150,14 @@ public abstract class MVCNode extends RPCNode {
 	 * 
 	 * @param from
 	 *            The address from which the message was received
-	 * @param transaction
-	 *            The RPC transaction that was received
+   * @param tid
+   *            The transaction id this response is for
+	 * @param committed
+	 *            True if the specified transaction was successful
    *
 	 */
-  public abstract void onMVCResponse(Integer from, MVCBundle bundle);
+  public abstract void onMVCResponse(Integer from, int tid, boolean success);
 
-  /**
-   * Some sweet ass class.
-   */
-  public static class MVCBundle {
 
-  }
 
 }

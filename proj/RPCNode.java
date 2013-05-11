@@ -39,25 +39,44 @@ public abstract class RPCNode extends RIONode {
   }
 
 	//----------------------------------------------------------------------------
-	// transaction routines
-	//----------------------------------------------------------------------------
-
-	//----------------------------------------------------------------------------
 	// send routines
 	//----------------------------------------------------------------------------
 
 	/**
-	 * Send a single RPC transaction over to a remote node
+	 * Send a RPC call request over to a remote node.
+	 * Includes a file version list and a filesystem transaction.
 	 * 
 	 * @param destAddr
 	 *            The address to send to
+   * @param filelist
+   *            A list of files and version numbers.
+   *            The file contents are not used.
 	 * @param transaction
-	 *            The transaction to send
+	 *            The filesystem transaction to send.
+   *            If null, won't send any transaction.
 	 */
-  public void RPCSend(int destAddr, MVCNode.MVCBundle bundle) {
-    byte[] payload = bundle.serialize();
-    RIOSend(destAddr, Protocol.DATA, payload);
+  public void RPCSendRequest(int destAddr, RPCBundle bundle) {
+    RIOSend(destAddr, Protocol.DATA, serialize(bundle, MessageType.REQUEST));
   }
+
+	/**
+	 * Send a RPC call response over to a remote node.
+	 * Includes a file version list.
+	 * 
+	 * @param destAddr
+	 *            The address to send to
+   * @param filelist
+   *            A list of files and version numbers.
+   *            They must also contain file contents.
+	 */
+  public void RPCSendResponse(int destAddr, RPCBundle bundle) {
+    RIOSend(destAddr, Protocol.DATA, serialize(bundle, MessageType.RESPONSE));
+  }
+
+  private byte[] serialize(RPCBundle bundle, MessageType type) {
+    return new byte[0];
+  }
+
 
 	//----------------------------------------------------------------------------
 	// receive routines
@@ -77,62 +96,53 @@ public abstract class RPCNode extends RIONode {
 	public void onRIOReceive(Integer from, int protocol, byte[] msg) {
     if(protocol == Protocol.DATA) {
       try {
-        String payload = Utility.byteArrayToString(msg);
-        JSONObject transaction = new JSONObject(payload);
-
-        MessageType messageType = extractMessageType(transaction);
+        RPCBundle bundle = deserialize(msg);
+        MessageType messageType = bundle.type;
         switch (messageType) {
           case REQUEST:
-            onRPCRequest(from, transaction);
+            onRPCRequest(from, bundle);
             break;
           case RESPONSE:
-            onRPCResponse(from, transaction);
+            onRPCResponse(from, bundle);
             break;
           default:
             LOG.warning("Received invalid message type");
         }
-      } catch(JSONException e) {
-        LOG.warning("Data message could not be parsed to RPC JSON transaction");
+      } catch(IllegalArgumentException e) {
+        LOG.warning("Data message could not be parsed into valid RPCBundle");
       }
     } else {
       // no idea what to do
     }
   }
 
-  /**
-   * Returns the UUID of the specified transaction.
-   * @return the UUID, or null if none present
-   */
-  public static UUID extractUUID(byte[] msg) {
-    String payload = Utility.byteArrayToString(msg);
-    UUID uuid = null;
+  private static RPCBundle deserialize(byte[] msg) throws
+        IllegalArgumentException {
     try {
-      JSONObject transaction = new JSONObject(payload);
-      uuid = UUID.fromString(transaction.getString("uuid"));
     } catch(JSONException e) {
-      LOG.warning("JSON parsing error for RPC transaction");
-      e.printStackTrace();
+      throw new IllegalArgumentException("Data message could not be parsed into valid RPCBundle");
     }
-    return uuid;
-  }
-  
-  /**
-   * Returns the message type of the specified transaction.
-   * @return the message type, null if none present.
-   */
-  public static MessageType extractMessageType(byte[] msg) {
-    String payload = Utility.byteArrayToString(msg);
-    MessageType mt = null;
-    try {
-      JSONObject transaction = new JSONObject(payload);
-      mt = MessageType.values()[transaction.getInt("messageType")];
-    } catch(JSONException e) {
-      LOG.warning("JSON parsing error for RPC transaction: " + payload);
-      e.printStackTrace();
-    }
-    return mt;
+    return null;
   }
 
+  /**
+   * Returns the transaction id of the specified message.
+   * @return an int, the transaction id of this message
+   */
+  public static int extractMessageId(byte[] msg) {
+    RPCBundle bundle = deserialize(msg);
+    return bundle.transaction.tid;
+  }
+
+  /**
+   * Returns the message type of the specified message.
+   * @return a MessageType describing the type of message received
+   */
+  public static MessageType extractMessageType(byte[] msg) {
+    RPCBundle bundle = deserialize(msg);
+    return bundle.type;
+  }
+  
 	/**
 	 * Method that is called by the RPC layer when an RPC Request transaction is 
    * received.
@@ -140,12 +150,13 @@ public abstract class RPCNode extends RIONode {
 	 * 
 	 * @param from
 	 *            The address from which the message was received
+   * @param filelist
+   *            A list of files and version numbers.
+   *            The file contents are not used.
 	 * @param transaction
-	 *            The RPC transaction that was received
+	 *            The filesystem transaction to send.
 	 */
-  public void onRPCRequest(Integer from, JSONObject transaction) {
-    //TODO: do something rad
-  }
+  public abstract void onRPCRequest(Integer from, RPCBundle bundle);
 
 	/**
 	 * Method that is called by the RPC layer when an RPC Response transaction is 
@@ -154,26 +165,37 @@ public abstract class RPCNode extends RIONode {
 	 * 
 	 * @param from
 	 *            The address from which the message was received
-	 * @param transaction
-	 *            The RPC transaction that was received
-   *
-   * The transaction should contain the following fields:
-   * String "uuid" - unique id
-   * int "messageType" - MessageType enum ordinal
-   * int "operation" - NFSOperation enum ordinal
-   * String "filename" - the file that was targeted
-   *
-   * Conditional fields on MessageType:
-   * if("messageType" -> MessageType.READ)
-   *   JSONArray "filelines" - array of strings, each a separate line of the file
-   * if("messageType" -> MessageType.CHECK)
-   *   long "date" - the long representation of a Date object
-   *   Boolean "check" - true if the file version is no newer than the
-   *                     accompanying Date
-   * if("messageType" -> MessageType.EXISTS)
-   *   Boolean "exists" - true if the specified file exists
+	 * @param from
+	 *            The address from which the message was received
+   * @param filelist
+   *            A list of files and version numbers.
+   *            The file contents are not used.
    *
 	 */
-  public abstract void onRPCResponse(Integer from, JSONObject transaction);
+  public abstract void onRPCResponse(Integer from, RPCBundle bundle);
 
+  /**
+   * Some sweet ass class.
+   */
+  public static class RPCBundle {
+    public final MessageType type;
+    public final NFSTransaction transaction;
+    public final List<MVCFileData> filelist;
+
+    /**
+     * Wrapper around a file version list and a filesystem transaction.
+     *
+     * @param filelist
+     *            A list of files and version numbers.
+     *            The file contents are not used.
+     * @param transaction
+     *            The filesystem transaction to send.
+     */
+    public RPCBundle(List<MVCFileData> filelist, NFSTransaction transaction,
+                     MessageType type) {
+      this.filelist = filelist;
+      this.transaction = transaction;
+      this.type = type;
+    }
+  }
 }
