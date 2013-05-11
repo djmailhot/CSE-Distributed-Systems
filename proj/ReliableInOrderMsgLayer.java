@@ -23,8 +23,8 @@ public class ReliableInOrderMsgLayer {
 	private RIONode n;
 	private MsgLogger msl;
 	private SeqNumLogger snl;
-	private HashMap<UUID,SeqLogEntries.AddrSeqPair> responseMap;
-	private HashMap<UUID,SeqLogEntries.AddrSeqPair> responseRecvdMap;
+	private HashMap<Integer,SeqLogEntries.AddrSeqPair> responseMap;
+	private HashMap<Integer,SeqLogEntries.AddrSeqPair> responseRecvdMap;
 	private LinkedList<DeliveryObject> tempDelivery;
 	
 	private class DeliveryObject{
@@ -49,8 +49,8 @@ public class ReliableInOrderMsgLayer {
 	public ReliableInOrderMsgLayer(RIONode n) {
 		inConnections = new HashMap<Integer, InChannel>();
 		outConnections = new HashMap<Integer, OutChannel>();
-		responseMap = new HashMap<UUID, SeqLogEntries.AddrSeqPair>();
-		responseRecvdMap = new HashMap<UUID,SeqLogEntries.AddrSeqPair>();
+		responseMap = new HashMap<Integer, SeqLogEntries.AddrSeqPair>();
+		responseRecvdMap = new HashMap<Integer,SeqLogEntries.AddrSeqPair>();
 		this.n = n;
 		this.msl = new MsgLogger(n);
 		this.snl = new SeqNumLogger(n);
@@ -72,7 +72,7 @@ public class ReliableInOrderMsgLayer {
 			boolean alreadyResponded = false;
 			for(MsgLogEntry mle2: sendLogsAll){
 				RIOPacket rp2 = new RIOPacket(Protocol.DATA, mle2.seqNum(), mle2.msg().getBytes());
-				if(RPCNode.extractUUID(rp.getPayload()) == RPCNode.extractUUID(rp2.getPayload())){
+				if(RPCNode.extractMessageId(rp.getPayload()) == RPCNode.extractMessageId(rp2.getPayload())){
 					alreadyResponded = true;
 					deletedSomeRecvs = true;
 					this.msl.deleteLog(mle2.addr(), mle2.seqNum(), MsgLogger.RECV);
@@ -80,8 +80,8 @@ public class ReliableInOrderMsgLayer {
 			}
 			
 			if(!alreadyResponded){
-				if(mt==RPCNode.MessageType.REQUEST) responseMap.put(RPCNode.extractUUID(rp.getPayload()), new SeqLogEntries.AddrSeqPair(mle.addr(), mle.seqNum()));
-				else responseRecvdMap.put(RPCNode.extractUUID(rp.getPayload()), new SeqLogEntries.AddrSeqPair(mle.addr(), mle.seqNum()));
+				if(mt==RPCNode.MessageType.REQUEST) responseMap.put(RPCNode.extractMessageId(rp.getPayload()), new SeqLogEntries.AddrSeqPair(mle.addr(), mle.seqNum()));
+				else responseRecvdMap.put(RPCNode.extractMessageId(rp.getPayload()), new SeqLogEntries.AddrSeqPair(mle.addr(), mle.seqNum()));
 			}
 			
 		}
@@ -206,8 +206,8 @@ public class ReliableInOrderMsgLayer {
 		
 		
 		RPCNode.MessageType mt = RPCNode.extractMessageType(riopkt.getPayload());
-		if(mt == RPCNode.MessageType.REQUEST) responseMap.put(RPCNode.extractUUID(riopkt.getPayload()), new SeqLogEntries.AddrSeqPair(from, riopkt.getSeqNum()));
-		else responseRecvdMap.put(RPCNode.extractUUID(riopkt.getPayload()), new SeqLogEntries.AddrSeqPair(from, riopkt.getSeqNum()));
+		if(mt == RPCNode.MessageType.REQUEST) responseMap.put(RPCNode.extractMessageId(riopkt.getPayload()), new SeqLogEntries.AddrSeqPair(from, riopkt.getSeqNum()));
+		else responseRecvdMap.put(RPCNode.extractMessageId(riopkt.getPayload()), new SeqLogEntries.AddrSeqPair(from, riopkt.getSeqNum()));
 		boolean alreadyLogged = this.msl.logMsg(from, new String(riopkt.getPayload()), riopkt.getSeqNum(), MsgLogger.RECV);		
 		
 		
@@ -273,11 +273,11 @@ public class ReliableInOrderMsgLayer {
 			this.msl.logMsg(destAddr, new String(payload), out.getNextSeqNum(), MsgLogger.SEND);
 			
 			/* Delete the recv log if this is a response */
-			UUID currentUUID = RPCNode.extractUUID(payload);
-			SeqLogEntries.AddrSeqPair asp = responseMap.get(currentUUID);
+			int currentID = RPCNode.extractMessageId(payload);
+			SeqLogEntries.AddrSeqPair asp = responseMap.get(currentID);
 			if(asp != null){
 				this.msl.deleteLog(asp.addr(), asp.seq(), MsgLogger.RECV);
-				responseMap.remove(currentUUID);
+				responseMap.remove(currentID);
 			}
 		}
 		
