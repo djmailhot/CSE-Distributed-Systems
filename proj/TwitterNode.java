@@ -21,7 +21,7 @@ import plume.Pair;
  * 
  * If this is a problem, it will be easy enough to split them apart again. 
  */
-public class TwitterNode extends RPCNode {
+public class TwitterNode extends MVCNode {
 	private String username = null;  // TODO: change back to null
 	private int DEST_ADDR = addr == 0? 1 : 0; // Copied from TwoGenerals.java
 	
@@ -213,22 +213,22 @@ public class TwitterNode extends RPCNode {
 		// create user_followers // those who are following this user
 		// create user_stream    // this user's unread tweets
 		//JSONObject append = transactionAppend("users.txt", user);
-		JSONObject cfollowers = transactionCreate(user + "_followers.txt");
-		JSONObject cstream = transactionCreate(user + "_stream.txt");
+		//JSONObject cfollowers = transactionCreate(user + "_followers.txt");
+		//JSONObject cstream = transactionCreate(user + "_stream.txt");
 		// TODO how do I know the address?
-		List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(cfollowers, cstream)));
-		mapUUIDs(uuids, TwitterOp.CREATE, user);
+		//List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(cfollowers, cstream)));
+		//mapUUIDs(uuids, TwitterOp.CREATE, user);
 		System.out.println("create user RPC sent");
 	}
 	
 	private void login(String user) {
 		waitingForResponse = true;
 		// CHECK_EXISTENCE of user_followers.txt
-		JSONObject existance = transactionExist(user + "_followers.txt");
-		System.out.println(existance.toString());
+		//JSONObject existance = transactionExist(user + "_followers.txt");
+		//System.out.println(existance.toString());
 		// TODO how do I know the address?
-		List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(existance)));
-		mapUUIDs(uuids, TwitterOp.LOGIN, user);
+		//List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(existance)));
+		//mapUUIDs(uuids, TwitterOp.LOGIN, user);
 	}
 	
 	private void logout() {
@@ -244,9 +244,9 @@ public class TwitterNode extends RPCNode {
 		waitingForResponse = true;
 		// send tweet to server
 		// READ the file user_followers
-		JSONObject read = transactionRead(username + "_followers.txt");
-		List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(read)));
-		mapUUIDs(uuids, TwitterOp.TWEET, tweet);
+		//JSONObject read = transactionRead(username + "_followers.txt");
+		//List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(read)));
+		//mapUUIDs(uuids, TwitterOp.TWEET, tweet);
 		System.out.println("read followers RPC sent");
 	}
 	
@@ -255,11 +255,11 @@ public class TwitterNode extends RPCNode {
 		// read tweets from server
 		// READ username_stream
 		// DELETE username_stream // holds only unread tweets
-		JSONObject read = transactionRead(username + "_stream.txt");
-		JSONObject delete = transactionDelete(username + "_stream.txt");
+		//JSONObject read = transactionRead(username + "_stream.txt");
+		//JSONObject delete = transactionDelete(username + "_stream.txt");
 		// TODO how do I know the address?
-		List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(read, delete)));
-		mapUUIDs(uuids, TwitterOp.READTWEETS, null);
+		//List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(read, delete)));
+		//mapUUIDs(uuids, TwitterOp.READTWEETS, null);
 		System.out.println("read tweets RPC sent");
 	}
 	
@@ -267,9 +267,9 @@ public class TwitterNode extends RPCNode {
 		waitingForResponse = true;
 		// tell server to follow followUserName
 		// APPEND username, followUserName_followers
-		JSONObject append = transactionAppend(followUserName + "_followers.txt", username);
-		List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(append)));
-		mapUUIDs(uuids, TwitterOp.FOLLOW, followUserName);
+		//JSONObject append = transactionAppend(followUserName + "_followers.txt", username);
+		//List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(append)));
+		//mapUUIDs(uuids, TwitterOp.FOLLOW, followUserName);
 		System.out.println("follow append RPC sent");
 	}
 	
@@ -277,9 +277,9 @@ public class TwitterNode extends RPCNode {
 		waitingForResponse = true;
 		// tell server to delete unfollowUserName from following
 		// DELETE_LINE username, unfollowUserName_followers
-		JSONObject delete = transactionDeleteLine(unfollowUserName + "_followers.txt", username);
-		List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(delete)));
-		mapUUIDs(uuids, TwitterOp.UNFOLLOW, unfollowUserName);
+		//JSONObject delete = transactionDeleteLine(unfollowUserName + "_followers.txt", username);
+		//List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(delete)));
+		//mapUUIDs(uuids, TwitterOp.UNFOLLOW, unfollowUserName);
 		System.out.println("unfollow delete RPC sent");
 	}
 	
@@ -287,9 +287,9 @@ public class TwitterNode extends RPCNode {
 		waitingForResponse = true;
 		// tell server to delete username from blockUserName's following list
 		// DELETE_LINE blockUserName, username_followers
-		JSONObject delete = transactionDeleteLine(username + "_followers.txt", blockUserName);
-		List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(delete)));
-		mapUUIDs(uuids, TwitterOp.BLOCK, blockUserName);
+		//JSONObject delete = transactionDeleteLine(username + "_followers.txt", blockUserName);
+		//List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(delete)));
+		//mapUUIDs(uuids, TwitterOp.BLOCK, blockUserName);
 		System.out.println("block delete RPC sent");
 	}
 	
@@ -309,15 +309,15 @@ public class TwitterNode extends RPCNode {
 
 	@Override
 	public void onRPCResponse(Integer from, JSONObject transaction) {
-		UUID uuid = extractUUID(transaction);
-		Pair<TwitterOp, String> p = uuidmap.remove(uuid);
-		if (p == null) { 
-			this.RIOLayer.responseFinalized(uuid, MsgLogger.RECV); 
+		/*//UUID uuid = extractUUID(transaction);
+		//Pair<TwitterOp, String> p = uuidmap.remove(uuid);
+		//if (p == null) { 
+			//this.RIOLayer.responseFinalized(uuid, MsgLogger.RECV); 
 			return;
-		} // We are not expecting this response.
+		//} // We are not expecting this response.
 		
-		TwitterOp op = p.a;
-		String extraInfo = p.b;
+		//TwitterOp op = p.a;
+		//String extraInfo = p.b;
 		boolean success;
 		try {
 			success = transaction.getBoolean("success");
@@ -369,26 +369,26 @@ public class TwitterNode extends RPCNode {
 			break;
 		}			
 		case TWEET: {
-			// if we just read the list of followers, we still have to post to their streams.
-      NFSOperation operation = extractNFSOperation(transaction);
-			if (operation == NFSOperation.READ) {
-				List<String> followers = extractFilelines(transaction);
-				if (followers.size() > 0) {
+			/* // if we just read the list of followers, we still have to post to their streams.
+      //NFSOperation operation = extractNFSOperation(transaction);
+			//if (operation == NFSOperation.READ) {
+				//List<String> followers = extractFilelines(transaction);
+				//if (followers.size() > 0) {
 					ArrayList<JSONObject> appends = new ArrayList<JSONObject>();
-					for (String follower : followers) {
-						JSONObject append = transactionAppend(follower + "_stream.txt", username + ": " + extraInfo);
-						appends.add(append);
-					}
-					List<UUID> uuids = RPCSend(DEST_ADDR, appends);
+					//for (String follower : followers) {
+						//JSONObject append = transactionAppend(follower + "_stream.txt", username + ": " + extraInfo);
+						//appends.add(append);
+					//}
+					//List<UUID> uuids = RPCSend(DEST_ADDR, appends);
 					mapUUIDs(uuids, TwitterOp.TWEET, extraInfo);
-				} else { // no followers
+				//} else { // no followers
 					waitingForResponse = false;
 					op.display(extraInfo, success);
 					if (commandQueue.size() > 0) {
 						knownCommand(commandQueue.poll());
 					}
-				}
-			} else { // We heard back from a tweet append. Check if all the appends are back.
+				//}
+			//} else { // We heard back from a tweet append. Check if all the appends are back.
 				List<UUID> transactionuuids = transactionsmap.remove(uuid);
 				boolean finished = true;
 				if (transactionuuids != null) {
@@ -411,23 +411,23 @@ public class TwitterNode extends RPCNode {
 		}
 		case READTWEETS: {
 			System.out.println("OMG I AM READING TWEETS RIGHT NOWWWWW");
-			NFSOperation operation = extractNFSOperation(transaction);
-			if (operation == NFSOperation.READ) {
-			List<String> file = extractFilelines(transaction);
+			//NFSOperation operation = extractNFSOperation(transaction);
+			//if (operation == NFSOperation.READ) {
+			//List<String> file = extractFilelines(transaction);
 				StringBuilder sb = new StringBuilder();
-				for (String s : file) {
-					sb.append(s + "\n");
-				}
+				//for (String s : file) {
+				//	sb.append(s + "\n");
+				//}
 				waitingForResponse = false;
-				String tweets = sb.toString();
-				if (tweets.equals("")) {
-					tweets = "You have no unread tweets";
-				}
-				op.display(tweets, success);
+				//String tweets = sb.toString();
+				//if (tweets.equals("")) {
+				//	tweets = "You have no unread tweets";
+				//}
+				//op.display(tweets, success);
 				if (commandQueue.size() > 0) {
 					knownCommand(commandQueue.poll());
 				}
-			}
+			//}
 			break;
 		}
 		case FOLLOW:
@@ -446,5 +446,12 @@ public class TwitterNode extends RPCNode {
 		}
 		
 		this.RIOLayer.responseFinalized(uuid, MsgLogger.RECV);
+		*/
+	}
+
+	@Override
+	public void onMVCResponse(Integer from, MVCBundle bundle) {
+		// TODO Auto-generated method stub
+		
 	}
 }
