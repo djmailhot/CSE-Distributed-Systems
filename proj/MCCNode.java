@@ -17,6 +17,7 @@ public abstract class MCCNode extends RPCNode {
   private static final Logger LOG = Logger.getLogger(MCCNode.class.getName());
   private static final String METAFILE = "METAFILE";
   private static final String METAFILE_DELIMITER = "\t";
+  private static final String VERSION_DELIMITER = "@";
 
   private final NFSService nfsService;
 
@@ -75,7 +76,7 @@ public abstract class MCCNode extends RPCNode {
    * If the file does not exist, returns null;
    */
   public List<String> read(String filename) throws IOException {
-    return nfsService.read(filename);
+    return nfsService.read(getVersionedFilename(filename));
   }
 
   /**
@@ -94,7 +95,7 @@ public abstract class MCCNode extends RPCNode {
    * @return true if the specified file exists.
    */
   public boolean exists(String filename) throws IOException {
-    return nfsService.exists(filename);
+    return nfsService.exists(getVersionedFilename(filename));
   }
 
 	//----------------------------------------------------------------------------
@@ -110,19 +111,21 @@ public abstract class MCCNode extends RPCNode {
                                     NFSTransaction transaction) {
     boolean success = true;
     try {
+      // TODO:  ASSUME THAT FILEVERSIONS HAVE BEEN INCREMENTED
       for(NFSTransaction.NFSOperation op : transaction.ops) {
+        String filename = getVersionedFilename(op.filename);
         switch (op.opType) {
           case CREATEFILE:
-            success = success && nfsService.create(op.filename);
+            success = success && nfsService.create(filename);
             break;
           case APPENDLINE:
-            success = success && nfsService.append(op.filename, op.dataline);
+            success = success && nfsService.append(filename, op.dataline);
             break;
           case DELETEFILE:
-            success = success && nfsService.delete(op.filename);
+            success = success && nfsService.delete(filename);
             break;
           case DELETELINE:
-            success = success && nfsService.deleteLine(op.filename, op.dataline);
+            success = success && nfsService.deleteLine(filename, op.dataline);
             break;
           default:
             LOG.warning("Received invalid operation type");
@@ -139,6 +142,27 @@ public abstract class MCCNode extends RPCNode {
     }
   }
 
+  private String getVersionedFilename(String filename) {
+    if(!fileVersions.containsKey(filename)) {
+      throw new IllegalArgumentException("filename not in fileVersions map");
+      //return null;
+    }
+    int version = fileVersions.get(filename);
+    return String.format("%d%s%s", version, VERSION_DELIMITER, filename);
+  }
+
+
+  /**
+   * @return null if the specified filedata and transaction operations 
+   * were constructed from an up-to-version filesystem.  Else, returns
+   * a list of MCCFileData objects with up-to-version files and their contents.
+   */
+  private List<MCCFileData> checkVersions(List<MCCFileData> filedata,
+                                          NFSTransaction transaction) {
+
+    return null;
+  }
+
   /**
    * Writes a new version of this node's Metafile.
    *
@@ -147,6 +171,13 @@ public abstract class MCCNode extends RPCNode {
    * This is considered an atomic finalizing step to committing a transaction.
    */
   private void writeMetafile() throws IOException {
+    /*
+      int version = 1;
+      if(fileVersions.containsKey(op.filename)) {
+        version = fileVersions.get(op.filename);
+      }
+      fileVersions.put(op.filename, version);
+    */
     StringBuilder data = new StringBuilder();
     for(Integer tid : committedTids) {
       data.append(String.format("%d\n", tid));
