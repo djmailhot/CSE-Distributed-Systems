@@ -52,12 +52,10 @@ public class TwitterNode extends MCCNode {
 		try {
 			file = nfsService.read("username.txt");
 			
-			List<String> loggedCommands = this.ccl.loadLogs();
-			for(String s : loggedCommands){
+			List<Pair<String, Integer>> loggedCommands = this.ccl.loadLogs();
+			for(Pair<String, Integer> s : loggedCommands){
 				this.commandQueue.add(s);
 			}
-			
-			//MATT's TODO: load mapping of ID, log sequence number
 			
 		} catch (IOException e) {
 			file = null;
@@ -83,7 +81,7 @@ public class TwitterNode extends MCCNode {
 		String[] parsedCommand = command.split(" ");
 		String commandName = parsedCommand[0];
 		if(commandName.equals("login")) {
-			this.ccl.logCommand(command);
+			this.ccl.logCommand(command, transactionId);
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a username.");
 			} else {
@@ -96,7 +94,7 @@ public class TwitterNode extends MCCNode {
 			}
 			return true;
 		} else if (commandName.equals("logout") && username != null) {
-			this.ccl.logCommand(command);
+			this.ccl.logCommand(command, transactionId);
 			if (waitingForResponse) {
 				System.out.println("Please wait!!");
 				commandQueue.offer(new Pair(command, transactionId));
@@ -105,7 +103,7 @@ public class TwitterNode extends MCCNode {
 			}
 			return true;
 		} else if (commandName.equals("create")) {
-			this.ccl.logCommand(command);
+			this.ccl.logCommand(command, transactionId);
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a username.");
 			} else {
@@ -118,7 +116,7 @@ public class TwitterNode extends MCCNode {
 			}
 			return true;
 		} else if (commandName.equals("tweet") && username != null) {
-			this.ccl.logCommand(command);
+			this.ccl.logCommand(command, transactionId);
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a tweet.");
 			}
@@ -130,7 +128,7 @@ public class TwitterNode extends MCCNode {
 			}
 			return true;
 		} else if (commandName.equals("readtweets") && username != null) {
-			this.ccl.logCommand(command);
+			this.ccl.logCommand(command, transactionId);
 			if (waitingForResponse) {
 				System.out.println("Please wait!!");
 				commandQueue.offer(new Pair(command, transactionId));
@@ -139,7 +137,7 @@ public class TwitterNode extends MCCNode {
 			}
 			return true;
 		} else if (commandName.equals("follow") && username != null) {
-			this.ccl.logCommand(command);
+			this.ccl.logCommand(command, transactionId);
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a username.");
 			} else {
@@ -152,7 +150,7 @@ public class TwitterNode extends MCCNode {
 			} 
 			return true;
 		} else if (commandName.equals("unfollow") && username != null) {
-			this.ccl.logCommand(command);
+			this.ccl.logCommand(command, transactionId);
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a username.");
 			} else {
@@ -165,7 +163,7 @@ public class TwitterNode extends MCCNode {
 			}
 			return true;
 		} else if (commandName.equals("block") && username != null) {
-			this.ccl.logCommand(command);
+			this.ccl.logCommand(command, transactionId);
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a username.");
 			} else {
