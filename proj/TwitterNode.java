@@ -188,19 +188,25 @@ public class TwitterNode extends MCCNode {
 	}
 	
 	
-	private void create(String user) {
+	private void create(String user) {//done
 		waitingForResponse = true;
-		// tell server to create files for user.
-		// append users, user 
-		// create user_followers // those who are following this user
-		// create user_stream    // this user's unread tweets
-		//JSONObject append = transactionAppend("users.txt", user);
-		//JSONObject cfollowers = transactionCreate(user + "_followers.txt");
-		//JSONObject cstream = transactionCreate(user + "_stream.txt");
-		// TODO how do I know the address?
-		//List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(cfollowers, cstream)));
-		//mapUUIDs(uuids, TwitterOp.CREATE, user);
-		System.out.println("create user RPC sent");
+		try {
+			int transactionId = edu.washington.cs.cse490h.lib.Utility.getRNG().nextInt();
+			String filename = user + "_followers.txt";
+
+			nfsService.create(filename);
+			mapUUIDs(transactionId, TwitterOp.CREATE, Arrays.asList(user));
+			
+			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
+			b.createFile(filename);
+			
+			commitTransaction(DEST_ADDR, b.build());
+			System.out.println("create user commit sent");
+			
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} 
 	}
 	
 	private void login(String user) {
@@ -222,13 +228,8 @@ public class TwitterNode extends MCCNode {
 		System.out.println("Logout successful.");
 	}
 	
-	private void tweet(String tweet){
+	private void tweet(String tweet){//done
 		waitingForResponse = true;
-		// send tweet to server
-		// READ the file user_followers
-		//JSONObject read = transactionRead(username + "_followers.txt");
-		//List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(read)));
-		//mapUUIDs(uuids, TwitterOp.TWEET, tweet);
 		try {
 			int transactionId = edu.washington.cs.cse490h.lib.Utility.getRNG().nextInt();
 			String filename = username + "_followers.txt";
@@ -238,7 +239,7 @@ public class TwitterNode extends MCCNode {
 			b.touchFile(filename);
 			
 			for (String follower : followers) {
-				nfsService.append(follower + "_stream.txt", tweet);
+				nfsService.append(follower + "_stream.txt", username + ": " + tweet);
 			}
 			mapUUIDs(transactionId, TwitterOp.TWEET, Arrays.asList(tweet));
 			
@@ -321,147 +322,6 @@ public class TwitterNode extends MCCNode {
 		uuidmap.put(uuid, Pair.of(op, extraInfo));
 	}
 
-	//public void onRPCResponse(Integer from, JSONObject transaction) {
-		/*//UUID uuid = extractUUID(transaction);
-		//Pair<TwitterOp, String> p = uuidmap.remove(uuid);
-		//if (p == null) { 
-			//this.RIOLayer.responseFinalized(uuid, MsgLogger.RECV); 
-			return;
-		//} // We are not expecting this response.
-		
-		//TwitterOp op = p.a;
-		//String extraInfo = p.b;
-		boolean success;
-		try {
-			success = transaction.getBoolean("success");
-		} catch (JSONException e) {
-			success = false;
-		}
-		
-		// process the response
-		switch(op) {
-		case CREATE: {
-			List<UUID> transactionuuids = transactionsmap.remove(uuid);
-			if (transactionuuids != null) {
-				// check if the other RPCs in this bundle have finished.
-				boolean finished = true;
-				for (UUID other : transactionuuids) {
-					if (transactionsmap.containsKey(other)) { // TODO: do I need locking here?
-						finished = false;
-					}
-				}
-				if (finished) {
-					waitingForResponse = false;
-					op.display(extraInfo, success);
-					if (commandQueue.size() > 0) {
-						knownCommand(commandQueue.poll());
-					}
-				}
-			}			
-			break;
-		}
-		case LOGIN: {
-			Boolean exists;
-			try {
-				exists = transaction.getBoolean("exists");
-			} catch (JSONException e) {
-				exists = false;
-			}
-			username = exists ? extraInfo : username;
-			if (username != null) {
-				try {
-					nfsService.write("username.txt", username);
-				} catch (IOException e) {
-				}
-			}
-			waitingForResponse = false;
-			op.display(extraInfo, exists);
-			if (commandQueue.size() > 0) {
-				knownCommand(commandQueue.poll());
-			}
-			break;
-		}			
-		case TWEET: {
-			/* // if we just read the list of followers, we still have to post to their streams.
-      //NFSOperation operation = extractNFSOperation(transaction);
-			//if (operation == NFSOperation.READ) {
-				//List<String> followers = extractFilelines(transaction);
-				//if (followers.size() > 0) {
-					ArrayList<JSONObject> appends = new ArrayList<JSONObject>();
-					//for (String follower : followers) {
-						//JSONObject append = transactionAppend(follower + "_stream.txt", username + ": " + extraInfo);
-						//appends.add(append);
-					//}
-					//List<UUID> uuids = RPCSend(DEST_ADDR, appends);
-					mapUUIDs(uuids, TwitterOp.TWEET, extraInfo);
-				//} else { // no followers
-					waitingForResponse = false;
-					op.display(extraInfo, success);
-					if (commandQueue.size() > 0) {
-						knownCommand(commandQueue.poll());
-					}
-				//}
-			//} else { // We heard back from a tweet append. Check if all the appends are back.
-				List<UUID> transactionuuids = transactionsmap.remove(uuid);
-				boolean finished = true;
-				if (transactionuuids != null) {
-					// check if the other RPCs in this bundle have finished.
-					for (UUID other : transactionuuids) {
-						if (transactionsmap.containsKey(other)) { // TODO: do I need locking here?
-							finished = false;
-						}
-					}
-				}
-				if (finished) {
-					waitingForResponse = false;
-					op.display(extraInfo, success);
-					if (commandQueue.size() > 0) {
-						knownCommand(commandQueue.poll());
-					}
-				}			
-			}
-			break;
-		}
-		case READTWEETS: {
-			System.out.println("OMG I AM READING TWEETS RIGHT NOWWWWW");
-			//NFSOperation operation = extractNFSOperation(transaction);
-			//if (operation == NFSOperation.READ) {
-			//List<String> file = extractFilelines(transaction);
-				StringBuilder sb = new StringBuilder();
-				//for (String s : file) {
-				//	sb.append(s + "\n");
-				//}
-				waitingForResponse = false;
-				//String tweets = sb.toString();
-				//if (tweets.equals("")) {
-				//	tweets = "You have no unread tweets";
-				//}
-				//op.display(tweets, success);
-				if (commandQueue.size() > 0) {
-					knownCommand(commandQueue.poll());
-				}
-			//}
-			break;
-		}
-		case FOLLOW:
-		case UNFOLLOW: 
-		case BLOCK: {
-			waitingForResponse = false;
-			op.display(extraInfo, success);
-			if (commandQueue.size() > 0) {
-				knownCommand(commandQueue.poll());
-			}
-			break;
-		}
-		case LOGOUT:
-		default:
-			break;
-		}
-		
-		this.RIOLayer.responseFinalized(uuid, MsgLogger.RECV);
-		*/
-	//}
-
 
 	// Assumes cache is up to date
 	@Override
@@ -474,9 +334,12 @@ public class TwitterNode extends MCCNode {
 		if (success) {
 			switch(op){		
 			case CREATE: 
+				System.out.println("You created user " + extraInfo.get(0));
+				pollCommand();
+				break;
 			case LOGIN: 
 			case TWEET: 
-				System.out.println("You tweeted " + tweet);
+				System.out.println("You tweeted " + extraInfo.get(0));
 				pollCommand();
 				break;
 			case READTWEETS: {
@@ -508,7 +371,17 @@ public class TwitterNode extends MCCNode {
 		} else { // NOT SUCCESSFUL
 			switch(op){		
 			case CREATE: 
-				knownCommand("create " + extraInfo.get(0));
+				String user = extraInfo.get(0);
+				try {
+					if (nfsService.exists(user + "_followers.txt")) {
+						System.out.println("User " + user + " already exists.");
+					} else {
+						knownCommand("create " + extraInfo.get(0));
+					}
+				} catch (IOException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
 			case LOGIN: 
 			case TWEET: 
 				knownCommand("tweet " + extraInfo.get(0));
