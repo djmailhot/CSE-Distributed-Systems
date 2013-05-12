@@ -21,7 +21,7 @@ import plume.Pair;
  * 
  * If this is a problem, it will be easy enough to split them apart again. 
  */
-public class TwitterNode extends MVCNode {
+public class TwitterNode extends MCCNode {
 	private String username = null;  // TODO: change back to null
 	private int DEST_ADDR = addr == 0? 1 : 0; // Copied from TwoGenerals.java
 	private ClientActionLogger cal;
@@ -43,55 +43,19 @@ public class TwitterNode extends MVCNode {
 	}
 	
 	private enum TwitterOp {
-		LOGIN {
-			public void display(String param, boolean exists) {
-				if (exists) {
-					System.out.println("Login successful for " + param + ".");
-				} else {
-					System.out.println("Error! Please create the user.");
-				}
-			}
-		},	
-		LOGOUT {
-			public void display(String param, boolean success) {
-				System.out.println("Logout successful.");
-			}
-		},	
-		CREATE {
-			public void display(String param, boolean success) {
-				System.out.println("Sucessfully created " + param + ".");				
-			}
-		},		
-		TWEET {
-			public void display(String param, boolean success) {
-				System.out.println("You tweeted: " + param);
-			}
-		},		
-		READTWEETS {
-			public void display(String param, boolean success) {
-					System.out.println(param);
-			}
-		},	
-		FOLLOW {
-			public void display(String param, boolean success) {
-				System.out.println("You are now following " + param + ".");
-			}
-		},		
-		UNFOLLOW {
-			public void display(String param, boolean success) {
-				System.out.println("You are no longer following " + param + ".");
-			}
-		},		
-		BLOCK {
-			public void display(String param, boolean success) {
-				System.out.println(param + " is no longer following you.");
-			}
-		};
-		
-		public abstract void display(String param, boolean success);
+		LOGIN,
+		LOGOUT,	
+		CREATE,		
+		TWEET,		
+		READTWEETS,	
+		FOLLOW,		
+		UNFOLLOW,		
+		BLOCK;
 	}
 	
 	public void start() {
+		// TODO: MATT, this is where recovery should go.
+		
 		System.out.println("TwitterNode " + addr + " starting.");
 		List<String> file;
 		try {
@@ -278,7 +242,24 @@ public class TwitterNode extends MVCNode {
 		// TODO how do I know the address?
 		//List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(read, delete)));
 		//mapUUIDs(uuids, TwitterOp.READTWEETS, null);
-		System.out.println("read tweets RPC sent");
+		
+		try {
+			int transactionId = edu.washington.cs.cse490h.lib.Utility.getRNG().nextInt();
+			String filename = username + "_stream.txt";
+			List<String> tweets = nfsService.read(filename); // read the cached copy of the tweets
+			nfsService.delete(filename);
+			mapUUIDs(transactionId, TwitterOp.READTWEETS, tweets);
+			
+			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
+			b.touchFile(filename);
+			b.deleteFile(filename);
+			
+			commitTransaction(DEST_ADDR, b.build());
+			System.out.println("read tweets commit sent");
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} 
 	}
 	
 	private void follow(String followUserName) {
@@ -311,22 +292,21 @@ public class TwitterNode extends MVCNode {
 		System.out.println("block delete RPC sent");
 	}
 	
-	private Map<UUID, Pair<TwitterOp, String>> uuidmap = new HashMap<UUID, Pair<TwitterOp, String>>();
-	private Map<UUID, List<UUID>> transactionsmap = new HashMap<UUID, List<UUID>>();
+	private Map<Integer, Pair<TwitterOp, List<String>>> uuidmap = new HashMap<Integer, Pair<TwitterOp, List<String>>>();
+	//private Map<UUID, List<UUID>> transactionsmap = new HashMap<UUID, List<UUID>>(); // no longer needed
 	
-	private void mapUUIDs(List<UUID> uuids, TwitterOp op, String extraInfo){
-		for (UUID uuid : uuids) {
+	private void mapUUIDs(Integer uuid, TwitterOp op, List<String> extraInfo){
+		//for (Integer uuid : uuids) {
 			uuidmap.put(uuid, Pair.of(op, extraInfo));
-		}
-		if (uuids.size() > 1) {
-			for (UUID uuid : uuids) {
-				transactionsmap.put(uuid, uuids); 
-			}
-		}
+		//}
+		//if (uuids.size() > 1) {
+		//	for (UUID uuid : uuids) {
+		//		transactionsmap.put(uuid, uuids); 
+		//	}
+		//}
 	}
 
-	@Override
-	public void onRPCResponse(Integer from, JSONObject transaction) {
+	//public void onRPCResponse(Integer from, JSONObject transaction) {
 		/*//UUID uuid = extractUUID(transaction);
 		//Pair<TwitterOp, String> p = uuidmap.remove(uuid);
 		//if (p == null) { 
@@ -465,11 +445,63 @@ public class TwitterNode extends MVCNode {
 		
 		this.RIOLayer.responseFinalized(uuid, MsgLogger.RECV);
 		*/
-	}
+	//}
 
+
+	// Assumes cache is up to date
 	@Override
-	public void onMVCResponse(Integer from, MVCBundle bundle) {
-		// TODO Auto-generated method stub
+	public void onMCCResponse(Integer from, int tid, boolean success) {
+		Pair<TwitterOp, List<String>> p = uuidmap.remove(tid);
+		TwitterOp op = p.a;
+		List<String> extraInfo = p.b;
+		
+		if (success) {
+			switch(op){		
+			case CREATE: 
+			case LOGIN: 
+			case TWEET: 
+				break;
+			case READTWEETS: {
+				// We successfully read and deleted the stream file, so now display the tweets to the user.
+				if (extraInfo != null) {
+					for (String tweet : extraInfo) {
+						System.out.println(tweet);
+					}
+				} else {
+					System.out.println("You have no unread tweets.");
+				}
+					waitingForResponse = false;
+					if (commandQueue.size() > 0) {
+						knownCommand(commandQueue.poll());
+					}
+				break;
+			}
+			case FOLLOW:
+			case UNFOLLOW: 
+			case BLOCK: 
+			case LOGOUT:
+			default:
+				break;
+			}
+			
+		} else { // not successful
+			switch(op){		
+			case CREATE: 
+			case LOGIN: 
+			case TWEET: 
+				break;
+			case READTWEETS: {
+				knownCommand("readtweets"); // Retry the transaction.
+				break;
+			}
+			case FOLLOW:
+			case UNFOLLOW: 
+			case BLOCK: 
+			case LOGOUT:
+			default:
+				break;
+			}
+		}
 		
 	}
 }
