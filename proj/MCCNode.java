@@ -67,6 +67,9 @@ public abstract class MCCNode extends RPCNode {
 	//----------------------------------------------------------------------------
 
   /**
+   * DEPRICATED UNTIL FURTHER NOTICE
+   * Submit a transaction to refresh the cache
+   *
    * Update all files on this NFS file system to match the most recent
    * versions on the specified remote node.
    *
@@ -74,20 +77,22 @@ public abstract class MCCNode extends RPCNode {
    *
    * Will recive a response through the onMCCResponse callback method.
    */
-  public void updateAllFiles(int destAddr) {
+  //public void updateAllFiles(int destAddr) {
     //TODO: Rainbow Dash
-  }
+  //}
 
   /**
-   * Commit the specified transaction to the specified remote node.
+   * Submit the specified transaction for committing on the specified remote 
+   * node.
    *
    * @param destAddr the address of the target remote node.
    * @param transaction the filesystem transaction to commit.
    *
    * Will recive a response through the onMCCResponse callback method.
    */
-  public void commitTransaction(int destAddr, NFSTransaction transaction) {
-    //TODO: Twilight Sparkle
+  public void submitTransaction(int destAddr, NFSTransaction transaction) {
+    //TODO: compile a list of MCCFileData objects, build an RPCBundle, RPC
+    // submit
   }
 
 	//----------------------------------------------------------------------------

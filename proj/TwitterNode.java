@@ -191,7 +191,7 @@ public class TwitterNode extends MCCNode {
 			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
 			b.createFile(filename);
 			
-			commitTransaction(DEST_ADDR, b.build());
+			submitTransaction(DEST_ADDR, b.build());
 			System.out.println("create user commit sent");
 			
 		} catch (IOException e) {
@@ -209,7 +209,7 @@ public class TwitterNode extends MCCNode {
 		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
 		b.touchFile(filename);
 		
-		commitTransaction(DEST_ADDR, b.build());
+		submitTransaction(DEST_ADDR, b.build());
 		System.out.println("login user commit sent"); 
 	}
 	
@@ -236,7 +236,7 @@ public class TwitterNode extends MCCNode {
 			}
 			mapUUIDs(transactionId, TwitterOp.TWEET, Arrays.asList(tweet));
 			
-			commitTransaction(DEST_ADDR, b.build());
+			submitTransaction(DEST_ADDR, b.build());
 			System.out.println("read tweets commit sent");
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -256,7 +256,7 @@ public class TwitterNode extends MCCNode {
 			b.touchFile(filename);
 			b.deleteFile(filename);
 			
-			commitTransaction(DEST_ADDR, b.build());
+			submitTransaction(DEST_ADDR, b.build());
 			System.out.println("read tweets commit sent");
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -278,7 +278,7 @@ public class TwitterNode extends MCCNode {
 			
 			mapUUIDs(transactionId, TwitterOp.FOLLOW, Arrays.asList(followUserName));
 			
-			commitTransaction(DEST_ADDR, b.build());
+			submitTransaction(DEST_ADDR, b.build());
 			System.out.println("follow " + followUserName + " commit sent");
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -298,7 +298,7 @@ public class TwitterNode extends MCCNode {
 			
 			mapUUIDs(transactionId, TwitterOp.FOLLOW, Arrays.asList(unfollowUserName));
 			
-			commitTransaction(DEST_ADDR, b.build());
+			submitTransaction(DEST_ADDR, b.build());
 			System.out.println("unfollow " + unfollowUserName + " commit sent");
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -318,7 +318,7 @@ public class TwitterNode extends MCCNode {
 			
 			mapUUIDs(transactionId, TwitterOp.FOLLOW, Arrays.asList(blockUserName));
 			
-			commitTransaction(DEST_ADDR, b.build());
+			submitTransaction(DEST_ADDR, b.build());
 			System.out.println("block " + blockUserName + " commit sent");
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -366,14 +366,14 @@ public class TwitterNode extends MCCNode {
 				break;
 			}
 			case FOLLOW: {
-				updateAllFiles(DEST_ADDR); // TODO: DAVID is this ok??????????????????
+				// updateAllFiles(DEST_ADDR); // not needed anymore. probably. - David
 				System.out.println("You are now following " + extraInfo.get(0));
 				pollCommand();
 				break;
 				
 			}
 			case UNFOLLOW: 
-				updateAllFiles(DEST_ADDR); // TODO: DAVID is this ok??????????????????
+				// updateAllFiles(DEST_ADDR); // not needed anymore. probably. - David
 				System.out.println("You are no longer following " + extraInfo.get(0));
 				pollCommand();
 				break;
