@@ -1,25 +1,17 @@
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.util.UUID;
-
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import plume.Pair;
 
-
-
 /*
- * I decided to collapse the client and server into the same node. Since the server is really lightweight
- * and I didnt want to spend time changing the tests to bew able to start different kinds of nodes.
+ * Assumptions
  * 
- * If this is a problem, it will be easy enough to split them apart again. 
+ * - The cache is always up to date when on MCCResponseIsCalled
+ * - There are no malicious clients. (I.E. no one will delete the currently logged in user.)
  */
 public class TwitterNode extends MCCNode {
 	private String username = null;  // TODO: change back to null
@@ -28,6 +20,7 @@ public class TwitterNode extends MCCNode {
 	
 	
 	boolean waitingForResponse = false;
+	private Map<Integer, Pair<TwitterOp, List<String>>> idMap = new HashMap<Integer, Pair<TwitterOp, List<String>>>();
 	Queue<String> commandQueue = new LinkedList<String>();
 	
 	// Ignore disk crashes
@@ -209,17 +202,21 @@ public class TwitterNode extends MCCNode {
 		} 
 	}
 	
-	private void login(String user) {
+	private void login(String user) {//done
 		waitingForResponse = true;
-		// CHECK_EXISTENCE of user_followers.txt
-		//JSONObject existance = transactionExist(user + "_followers.txt");
-		//System.out.println(existance.toString());
-		// TODO how do I know the address?
-		//List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(existance)));
-		//mapUUIDs(uuids, TwitterOp.LOGIN, user);
+		int transactionId = edu.washington.cs.cse490h.lib.Utility.getRNG().nextInt();
+		String filename = user + "_followers.txt";
+
+		mapUUIDs(transactionId, TwitterOp.LOGIN, Arrays.asList(user));
+		
+		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
+		b.touchFile(filename);
+		
+		commitTransaction(DEST_ADDR, b.build());
+		System.out.println("login user commit sent"); 
 	}
 	
-	private void logout() {
+	private void logout() {//done
 		try {
 			nfsService.delete("username.txt");
       username = null;
@@ -295,39 +292,57 @@ public class TwitterNode extends MCCNode {
 		} 
 	}
 	
-	private void unfollow(String unfollowUserName) {
+	private void unfollow(String unfollowUserName) {//done
 		waitingForResponse = true;
-		// tell server to delete unfollowUserName from following
-		// DELETE_LINE username, unfollowUserName_followers
-		//JSONObject delete = transactionDeleteLine(unfollowUserName + "_followers.txt", username);
-		//List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(delete)));
-		//mapUUIDs(uuids, TwitterOp.UNFOLLOW, unfollowUserName);
-		System.out.println("unfollow delete RPC sent");
+		try {
+			int transactionId = edu.washington.cs.cse490h.lib.Utility.getRNG().nextInt();
+			String filename = unfollowUserName + "_followers.txt";
+			
+			nfsService.deleteLine(filename, username);
+
+			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
+			b.deleteLine(filename, username);
+			
+			mapUUIDs(transactionId, TwitterOp.FOLLOW, Arrays.asList(unfollowUserName));
+			
+			commitTransaction(DEST_ADDR, b.build());
+			System.out.println("unfollow " + unfollowUserName + " commit sent");
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} 
 	}
 	
-	private void block(String blockUserName) {
+	private void block(String blockUserName) {//done
 		waitingForResponse = true;
-		// tell server to delete username from blockUserName's following list
-		// DELETE_LINE blockUserName, username_followers
-		//JSONObject delete = transactionDeleteLine(username + "_followers.txt", blockUserName);
-		//List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(delete)));
-		//mapUUIDs(uuids, TwitterOp.BLOCK, blockUserName);
-		System.out.println("block delete RPC sent");
+		try {
+			int transactionId = edu.washington.cs.cse490h.lib.Utility.getRNG().nextInt();
+			String filename = username + "_followers.txt";
+			
+			nfsService.deleteLine(filename, blockUserName);
+
+			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
+			b.deleteLine(filename, blockUserName);
+			
+			mapUUIDs(transactionId, TwitterOp.FOLLOW, Arrays.asList(blockUserName));
+			
+			commitTransaction(DEST_ADDR, b.build());
+			System.out.println("block " + blockUserName + " commit sent");
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} 
 	}
-	
-	private Map<Integer, Pair<TwitterOp, List<String>>> uuidmap = new HashMap<Integer, Pair<TwitterOp, List<String>>>();
-	//private Map<UUID, List<UUID>> transactionsmap = new HashMap<UUID, List<UUID>>(); // no longer needed
 	
 	private void mapUUIDs(Integer uuid, TwitterOp op, List<String> extraInfo){
-		uuidmap.put(uuid, Pair.of(op, extraInfo));
+		idMap.put(uuid, Pair.of(op, extraInfo));
 	}
-
 
 	// Assumes cache is up to date
 	@Override
 	public void onMCCResponse(Integer from, int tid, boolean success) {
 		waitingForResponse = false;
-		Pair<TwitterOp, List<String>> p = uuidmap.remove(tid);
+		Pair<TwitterOp, List<String>> p = idMap.remove(tid);
 		TwitterOp op = p.a;
 		List<String> extraInfo = p.b;
 		
@@ -338,6 +353,10 @@ public class TwitterNode extends MCCNode {
 				pollCommand();
 				break;
 			case LOGIN: 
+				username = extraInfo.get(0);
+				System.out.println("You are logged in as " + username);
+				pollCommand();
+				break;
 			case TWEET: 
 				System.out.println("You tweeted " + extraInfo.get(0));
 				pollCommand();
@@ -362,7 +381,13 @@ public class TwitterNode extends MCCNode {
 				
 			}
 			case UNFOLLOW: 
+				updateAllFiles(DEST_ADDR); // TODO: DAVID is this ok??????????????????
+				System.out.println("You are no longer following " + extraInfo.get(0));
+				pollCommand();
+				break;
 			case BLOCK: 
+				System.out.println("You have blocked " + extraInfo.get(0));
+				pollCommand();
 			case LOGOUT:
 			default:
 				break;
@@ -375,16 +400,21 @@ public class TwitterNode extends MCCNode {
 				try {
 					if (nfsService.exists(user + "_followers.txt")) {
 						System.out.println("User " + user + " already exists.");
+						pollCommand();
 					} else {
-						knownCommand("create " + extraInfo.get(0));
+						knownCommand("create " + extraInfo.get(0)); // Retry the transaction.
 					}
 				} catch (IOException e1) {
 					// TODO Auto-generated catch block
 					e1.printStackTrace();
 				}
 			case LOGIN: 
+				System.out.println("User " + extraInfo.get(0) + " does not exist.");
+				username = null;
+				pollCommand();
+				break;
 			case TWEET: 
-				knownCommand("tweet " + extraInfo.get(0));
+				knownCommand("tweet " + extraInfo.get(0)); // Retry the transaction.
 				break;
 			case READTWEETS: {
 				knownCommand("readtweets"); // Retry the transaction.
@@ -394,9 +424,9 @@ public class TwitterNode extends MCCNode {
 				String followUserName = extraInfo.get(0);
 				try {
 					if (nfsService.exists(followUserName + "_followers.txt")) {
-						knownCommand("follow " + followUserName + "_followers.txt");
+						knownCommand("follow " + followUserName); // Retry the transaction. Just out of date.
 					} else {
-						System.out.println("The user " + followUserName + " does not exist.");
+						System.out.println("The user " + followUserName + " does not exist."); // Abort.
 						pollCommand();
 					}
 				} catch (IOException e) {
@@ -405,8 +435,23 @@ public class TwitterNode extends MCCNode {
 				}
 				break;
 			}
-			case UNFOLLOW: 
+			case UNFOLLOW: {
+				String unFollowUserName = extraInfo.get(0);
+				try {
+					if (nfsService.exists(unFollowUserName + "_followers.txt")) {
+						knownCommand("unfollow " + unFollowUserName); // Retry the transaction. Just out of date.
+					} else {
+						System.out.println("The user " + unFollowUserName + " does not exist."); // Abort.
+						pollCommand();
+					}
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				break;
+			}
 			case BLOCK: 
+				knownCommand("block " + extraInfo.get(0));
 			case LOGOUT:
 			default:
 				break;
@@ -415,7 +460,7 @@ public class TwitterNode extends MCCNode {
 		
 	}	
 
-	public void pollCommand() {
+	private void pollCommand() {
 		if (commandQueue.size() > 0) {
 			knownCommand(commandQueue.poll());
 		}
