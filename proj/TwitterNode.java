@@ -229,20 +229,29 @@ public class TwitterNode extends MCCNode {
 		//JSONObject read = transactionRead(username + "_followers.txt");
 		//List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(read)));
 		//mapUUIDs(uuids, TwitterOp.TWEET, tweet);
-		System.out.println("read followers RPC sent");
+		try {
+			int transactionId = edu.washington.cs.cse490h.lib.Utility.getRNG().nextInt();
+			String filename = username + "_followers.txt";
+			List<String> followers = nfsService.read(filename); // read the cached copy of the followers
+	
+			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
+			b.touchFile(filename);
+			
+			for (String follower : followers) {
+				nfsService.append(follower + "_stream.txt", tweet);
+			}
+			mapUUIDs(transactionId, TwitterOp.TWEET, Arrays.asList(tweet));
+			
+			commitTransaction(DEST_ADDR, b.build());
+			System.out.println("read tweets commit sent");
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} 
 	}
 	
-	private void readTweets() {
+	private void readTweets() {//done
 		waitingForResponse = true;
-		// read tweets from server
-		// READ username_stream
-		// DELETE username_stream // holds only unread tweets
-		//JSONObject read = transactionRead(username + "_stream.txt");
-		//JSONObject delete = transactionDelete(username + "_stream.txt");
-		// TODO how do I know the address?
-		//List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(read, delete)));
-		//mapUUIDs(uuids, TwitterOp.READTWEETS, null);
-		
 		try {
 			int transactionId = edu.washington.cs.cse490h.lib.Utility.getRNG().nextInt();
 			String filename = username + "_stream.txt";
@@ -262,14 +271,27 @@ public class TwitterNode extends MCCNode {
 		} 
 	}
 	
-	private void follow(String followUserName) {
+	private void follow(String followUserName) {// done
 		waitingForResponse = true;
-		// tell server to follow followUserName
-		// APPEND username, followUserName_followers
-		//JSONObject append = transactionAppend(followUserName + "_followers.txt", username);
-		//List<UUID> uuids = RPCSend(DEST_ADDR, new ArrayList<JSONObject>(Arrays.asList(append)));
-		//mapUUIDs(uuids, TwitterOp.FOLLOW, followUserName);
-		System.out.println("follow append RPC sent");
+		try {
+			int transactionId = edu.washington.cs.cse490h.lib.Utility.getRNG().nextInt();
+			String filename = followUserName + "_followers.txt";
+			if (nfsService.exists(filename)) {
+				nfsService.append(filename, username); // append to the cache copy
+			}
+
+			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
+			b.touchFile(filename); // will this fail if the file does not exist??? I hope so!
+			b.appendLine(filename, followUserName);
+			
+			mapUUIDs(transactionId, TwitterOp.FOLLOW, Arrays.asList(followUserName));
+			
+			commitTransaction(DEST_ADDR, b.build());
+			System.out.println("follow " + followUserName + " commit sent");
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} 
 	}
 	
 	private void unfollow(String unfollowUserName) {
@@ -296,14 +318,7 @@ public class TwitterNode extends MCCNode {
 	//private Map<UUID, List<UUID>> transactionsmap = new HashMap<UUID, List<UUID>>(); // no longer needed
 	
 	private void mapUUIDs(Integer uuid, TwitterOp op, List<String> extraInfo){
-		//for (Integer uuid : uuids) {
-			uuidmap.put(uuid, Pair.of(op, extraInfo));
-		//}
-		//if (uuids.size() > 1) {
-		//	for (UUID uuid : uuids) {
-		//		transactionsmap.put(uuid, uuids); 
-		//	}
-		//}
+		uuidmap.put(uuid, Pair.of(op, extraInfo));
 	}
 
 	//public void onRPCResponse(Integer from, JSONObject transaction) {
@@ -451,6 +466,7 @@ public class TwitterNode extends MCCNode {
 	// Assumes cache is up to date
 	@Override
 	public void onMCCResponse(Integer from, int tid, boolean success) {
+		waitingForResponse = false;
 		Pair<TwitterOp, List<String>> p = uuidmap.remove(tid);
 		TwitterOp op = p.a;
 		List<String> extraInfo = p.b;
@@ -460,6 +476,8 @@ public class TwitterNode extends MCCNode {
 			case CREATE: 
 			case LOGIN: 
 			case TWEET: 
+				System.out.println("You tweeted " + tweet);
+				pollCommand();
 				break;
 			case READTWEETS: {
 				// We successfully read and deleted the stream file, so now display the tweets to the user.
@@ -470,13 +488,16 @@ public class TwitterNode extends MCCNode {
 				} else {
 					System.out.println("You have no unread tweets.");
 				}
-					waitingForResponse = false;
-					if (commandQueue.size() > 0) {
-						knownCommand(commandQueue.poll());
-					}
+				pollCommand();
 				break;
 			}
-			case FOLLOW:
+			case FOLLOW: {
+				updateAllFiles(DEST_ADDR); // TODO: DAVID is this ok??????????????????
+				System.out.println("You are now following " + extraInfo.get(0));
+				pollCommand();
+				break;
+				
+			}
 			case UNFOLLOW: 
 			case BLOCK: 
 			case LOGOUT:
@@ -484,17 +505,33 @@ public class TwitterNode extends MCCNode {
 				break;
 			}
 			
-		} else { // not successful
+		} else { // NOT SUCCESSFUL
 			switch(op){		
 			case CREATE: 
+				knownCommand("create " + extraInfo.get(0));
 			case LOGIN: 
 			case TWEET: 
+				knownCommand("tweet " + extraInfo.get(0));
 				break;
 			case READTWEETS: {
 				knownCommand("readtweets"); // Retry the transaction.
 				break;
 			}
-			case FOLLOW:
+			case FOLLOW: {
+				String followUserName = extraInfo.get(0);
+				try {
+					if (nfsService.exists(followUserName + "_followers.txt")) {
+						knownCommand("follow " + followUserName + "_followers.txt");
+					} else {
+						System.out.println("The user " + followUserName + " does not exist.");
+						pollCommand();
+					}
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				break;
+			}
 			case UNFOLLOW: 
 			case BLOCK: 
 			case LOGOUT:
@@ -503,5 +540,11 @@ public class TwitterNode extends MCCNode {
 			}
 		}
 		
+	}	
+
+	public void pollCommand() {
+		if (commandQueue.size() > 0) {
+			knownCommand(commandQueue.poll());
+		}
 	}
 }
