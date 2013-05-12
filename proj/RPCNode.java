@@ -205,19 +205,49 @@ public abstract class RPCNode extends RIONode {
     /**
      * Wrapper around a file version list and a filesystem transaction.
      *
+     * @param type
+     *            Whether this is a REQUEST or RESPONSE RPC message
+     * @param success
+     *            Whether the bundle represents a successful request
      * @param filelist
-     *            A list of files and version numbers.
-     *            The file contents are not used.
+     *            A list of files and version numbers with contents.
      * @param transaction
-     *            The filesystem transaction to send.
+     *            The filesystem transaction to include.
      */
-    public RPCBundle(MessageType type, boolean success, 
+    private RPCBundle(MessageType type, boolean success, 
                      List<MCCFileData> filelist, NFSTransaction transaction) {
       this.type = type;
       this.success = success;
       this.filelist = filelist;
       this.transaction = transaction;
       this.tid = transaction.tid;
+    }
+
+    /**
+     * Specifically constructs a request bundle.
+     *
+     * @param filelist
+     *            A list of files and version numbers with contents.
+     * @param transaction
+     *            The filesystem transaction to include.
+     */
+    public static RPCBundle newRequestBundle(List<MCCFileData> filelist,
+                                             NFSTransaction transaction) {
+      return new RPCBundle(MessageType.REQUEST, false, filelist, transaction);
+    }
+  
+    /**
+     * Specifically constructs a response bundle.
+     *
+     * @param requestBundle
+     *            The request RPCBundle that corresponds to this response 
+     * @param success
+     *            Whether the bundle represents a successful request
+     */
+    public static RPCBundle newResponseBundle(RPCBundle requestBundle,
+                                              boolean success) {
+      return new RPCBundle(MessageType.RESPONSE, true, 
+                           requestBundle.filelist, requestBundle.transaction);
     }
   }
 }
