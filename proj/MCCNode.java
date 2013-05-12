@@ -4,9 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.logging.Logger;
 
 /**
@@ -17,17 +15,54 @@ import java.util.logging.Logger;
  */
 public abstract class MCCNode extends RPCNode {
   private static final Logger LOG = Logger.getLogger(MCCNode.class.getName());
-
   private static final String METAFILE = "METAFILE";
+  private static final String METAFILE_DELIMITER = "\t";
 
-  protected final NFSService nfsService;
+  private final NFSService nfsService;
 
+  private Set<Integer> committedTids;
+  private Map<String, Integer> fileVersions;
 
   /**
    * Create a new Multiversioned Name File Storage Node.
    */
   public MCCNode() {
     this.nfsService = new NFSService(this);
+  }
+
+  public void start() {
+    this.committedTids = new HashSet<Integer>();
+    this.fileVersions = new HashMap<String, Integer>();
+
+    // read the metafile and populate the internal data structures
+    try {
+      List<String> lines = nfsService.read(METAFILE);
+      for(String line : lines) {
+        line = line.trim();
+        // if the empty string
+        if(line.length() == 0) {
+          continue;
+        }
+
+        String[] tokens = line.split(METAFILE_DELIMITER);
+        if(tokens.length == 1) {
+          committedTids.add(Integer.parseInt(tokens[0]));
+        } else if(tokens.length == 2) {
+          fileVersions.put(tokens[1], Integer.parseInt(tokens[0]));
+        } else {
+          throw new IllegalStateException("Metafile format corrupted");
+        }
+      }
+    } catch(IOException e) {
+      e.printStackTrace();
+      throw new IllegalStateException("Metafile read failure");
+    } catch(IndexOutOfBoundsException e) {
+      throw new IllegalStateException("Metafile format corrupted");
+    } catch(NumberFormatException e) {
+      throw new IllegalStateException("Metafile format corrupted");
+    }
+
+    super.start();
   }
 
 	//----------------------------------------------------------------------------
@@ -60,6 +95,67 @@ public abstract class MCCNode extends RPCNode {
    */
   public boolean exists(String filename) throws IOException {
     return nfsService.exists(filename);
+  }
+
+	//----------------------------------------------------------------------------
+	// MCC filesystem management
+	//----------------------------------------------------------------------------
+
+  /**
+   * Commits the specified transaction to this node's filesystem.
+   *
+   * @return true if successful
+   */
+  private boolean commitTransaction(List<MCCFileData> filedata,
+                                    NFSTransaction transaction) {
+    boolean success = true;
+    try {
+      for(NFSTransaction.NFSOperation op : transaction.ops) {
+        switch (op.opType) {
+          case CREATEFILE:
+            success = success && nfsService.create(op.filename);
+            break;
+          case APPENDLINE:
+            success = success && nfsService.append(op.filename, op.dataline);
+            break;
+          case DELETEFILE:
+            success = success && nfsService.delete(op.filename);
+            break;
+          case DELETELINE:
+            success = success && nfsService.deleteLine(op.filename, op.dataline);
+            break;
+          default:
+            LOG.warning("Received invalid operation type");
+        }
+      }
+
+      writeMetafile();  // atomically commit this transaction
+    } catch(IOException e) {
+      LOG.severe("File system failure");
+      e.printStackTrace();
+      return false;
+    } finally {
+      return success;
+    }
+  }
+
+  /**
+   * Writes a new version of this node's Metafile.
+   *
+   * Writes the current state of the internal MCC data structures to disk.
+   *
+   * This is considered an atomic finalizing step to committing a transaction.
+   */
+  private void writeMetafile() throws IOException {
+    StringBuilder data = new StringBuilder();
+    for(Integer tid : committedTids) {
+      data.append(String.format("%d\n", tid));
+    }
+    for(String filename : fileVersions.keySet()) {
+      int version = fileVersions.get(filename);
+      data.append(String.format("%d%s%s\n", version, METAFILE_DELIMITER, filename));
+    }
+    nfsService.write(METAFILE, data.toString());
   }
 
 	//----------------------------------------------------------------------------
@@ -100,11 +196,13 @@ public abstract class MCCNode extends RPCNode {
 	//----------------------------------------------------------------------------
 
   public void onRPCRequest(Integer from, RPCBundle bundle) {
-
+    onMCCRequest(from, bundle.filelist, bundle.transaction);
   }
+
+
   public void onRPCResponse(Integer from, RPCBundle bundle) {
-
   }
+
 	/**
 	 * Method that is called by the RPC layer when an RPC Request bundle is 
    * received.
@@ -122,29 +220,7 @@ public abstract class MCCNode extends RPCNode {
                            NFSTransaction transaction) {
     //TODO: make this actually work
     RPCBundle response = null;
-    for(NFSTransaction.NFSOperation op : transaction.ops) {
-      try {
-        switch (op.opType) {
-          case CREATEFILE:
-            nfsService.create(op.filename);
-            break;
-          case APPENDLINE:
-            nfsService.append(op.filename, op.dataline);
-            break;
-          case DELETEFILE:
-            nfsService.delete(op.filename);
-            break;
-          case DELETELINE:
-            nfsService.deleteLine(op.filename, op.dataline);
-            break;
-          default:
-            LOG.warning("Received invalid operation type");
-        }
-      } catch(IOException e) {
-        LOG.severe("File system failure");
-        e.printStackTrace();
-      }
-    }
+    commitTransaction(filelist, transaction);
     RPCSendResponse(from, response);
   }
 
