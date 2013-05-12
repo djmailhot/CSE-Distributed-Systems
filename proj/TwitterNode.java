@@ -21,7 +21,7 @@ public class TwitterNode extends MCCNode {
 	
 	boolean waitingForResponse = false;
 	private Map<Integer, Pair<TwitterOp, List<String>>> idMap = new HashMap<Integer, Pair<TwitterOp, List<String>>>();
-	Queue<String> commandQueue = new LinkedList<String>();
+	Queue<Pair<String, Integer>> commandQueue = new LinkedList<Pair<String, Integer>>();
 	
 	// Ignore disk crashes
 /*
@@ -69,14 +69,15 @@ public class TwitterNode extends MCCNode {
 
 	@Override
 	public void onCommand(String command) {
-		if(command != null && knownCommand(command.toLowerCase())){
+		int transactionId = edu.washington.cs.cse490h.lib.Utility.getRNG().nextInt();
+		if(command != null && knownCommand(command.toLowerCase(), transactionId)){
 			return;
 		}
 
 		System.err.println("Unrecognized command: " + command);
 	}
 	
-	private boolean knownCommand(String command) {
+	private boolean knownCommand(String command, int transactionId) {
 		if (command == null) { return false; }
 		
 		String[] parsedCommand = command.split(" ");
@@ -88,9 +89,9 @@ public class TwitterNode extends MCCNode {
 			} else {
 				if (waitingForResponse) {
 					System.out.println("Please wait!!");
-					commandQueue.offer(command);
+					commandQueue.offer(new Pair(command, transactionId));
 				} else {
-					login(parsedCommand[1]);
+					login(parsedCommand[1], transactionId);
 				}
 			}
 			return true;
@@ -98,9 +99,9 @@ public class TwitterNode extends MCCNode {
 			this.ccl.logCommand(command);
 			if (waitingForResponse) {
 				System.out.println("Please wait!!");
-				commandQueue.offer(command);
+				commandQueue.offer(new Pair(command, transactionId));
 			} else {
-				logout();	
+				logout(transactionId);	
 			}
 			return true;
 		} else if (commandName.equals("create")) {
@@ -110,9 +111,9 @@ public class TwitterNode extends MCCNode {
 			} else {
 				if (waitingForResponse) {
 					System.out.println("Please wait!!");
-					commandQueue.offer(command);
+					commandQueue.offer(new Pair(command, transactionId));
 				} else {
-					create(parsedCommand[1]);
+					create(parsedCommand[1], transactionId);
 				}
 			}
 			return true;
@@ -123,18 +124,18 @@ public class TwitterNode extends MCCNode {
 			}
 			if (waitingForResponse) {
 				System.out.println("Please wait!!");
-				commandQueue.offer(command);
+				commandQueue.offer(new Pair(command, transactionId));
 			} else {
-				tweet(command.substring(5).trim());
+				tweet(command.substring(5).trim(), transactionId);
 			}
 			return true;
 		} else if (commandName.equals("readtweets") && username != null) {
 			this.ccl.logCommand(command);
 			if (waitingForResponse) {
 				System.out.println("Please wait!!");
-				commandQueue.offer(command);
+				commandQueue.offer(new Pair(command, transactionId));
 			} else {
-				readTweets();
+				readTweets(transactionId);
 			}
 			return true;
 		} else if (commandName.equals("follow") && username != null) {
@@ -144,9 +145,9 @@ public class TwitterNode extends MCCNode {
 			} else {
 				if (waitingForResponse) {
 					System.out.println("Please wait!!");
-					commandQueue.offer(command);
+					commandQueue.offer(new Pair(command, transactionId));
 				} else {
-					follow(parsedCommand[1]);
+					follow(parsedCommand[1], transactionId);
 				}
 			} 
 			return true;
@@ -157,9 +158,9 @@ public class TwitterNode extends MCCNode {
 			} else {
 				if (waitingForResponse) {
 					System.out.println("Please wait!!");
-					commandQueue.offer(command);
+					commandQueue.offer(new Pair(command, transactionId));
 				} else {
-					unfollow(parsedCommand[1]);
+					unfollow(parsedCommand[1], transactionId);
 				}
 			}
 			return true;
@@ -170,9 +171,9 @@ public class TwitterNode extends MCCNode {
 			} else {
 				if (waitingForResponse) {
 					System.out.println("Please wait!!");
-					commandQueue.offer(command);
+					commandQueue.offer(new Pair(command, transactionId));
 				} else {
-					block(parsedCommand[1]);
+					block(parsedCommand[1], transactionId);
 				}
 			}
 			return true;
@@ -181,10 +182,9 @@ public class TwitterNode extends MCCNode {
 	}
 	
 	
-	private void create(String user) {//done
+	private void create(String user, int transactionId) {//done
 		waitingForResponse = true;
 		try {
-			int transactionId = edu.washington.cs.cse490h.lib.Utility.getRNG().nextInt();
 			String filename = user + "_followers.txt";
 
 			nfsService.create(filename);
@@ -202,9 +202,8 @@ public class TwitterNode extends MCCNode {
 		} 
 	}
 	
-	private void login(String user) {//done
+	private void login(String user, int transactionId) {//done
 		waitingForResponse = true;
-		int transactionId = edu.washington.cs.cse490h.lib.Utility.getRNG().nextInt();
 		String filename = user + "_followers.txt";
 
 		mapUUIDs(transactionId, TwitterOp.LOGIN, Arrays.asList(user));
@@ -216,7 +215,7 @@ public class TwitterNode extends MCCNode {
 		System.out.println("login user commit sent"); 
 	}
 	
-	private void logout() {//done
+	private void logout(int transactionId) {//done
 		try {
 			nfsService.delete("username.txt");
       username = null;
@@ -225,10 +224,9 @@ public class TwitterNode extends MCCNode {
 		System.out.println("Logout successful.");
 	}
 	
-	private void tweet(String tweet){//done
+	private void tweet(String tweet, int transactionId){//done
 		waitingForResponse = true;
 		try {
-			int transactionId = edu.washington.cs.cse490h.lib.Utility.getRNG().nextInt();
 			String filename = username + "_followers.txt";
 			List<String> followers = nfsService.read(filename); // read the cached copy of the followers
 	
@@ -248,10 +246,9 @@ public class TwitterNode extends MCCNode {
 		} 
 	}
 	
-	private void readTweets() {//done
+	private void readTweets(int transactionId) {//done
 		waitingForResponse = true;
 		try {
-			int transactionId = edu.washington.cs.cse490h.lib.Utility.getRNG().nextInt();
 			String filename = username + "_stream.txt";
 			List<String> tweets = nfsService.read(filename); // read the cached copy of the tweets
 			nfsService.delete(filename);
@@ -269,10 +266,9 @@ public class TwitterNode extends MCCNode {
 		} 
 	}
 	
-	private void follow(String followUserName) {// done
+	private void follow(String followUserName, int transactionId) {// done
 		waitingForResponse = true;
 		try {
-			int transactionId = edu.washington.cs.cse490h.lib.Utility.getRNG().nextInt();
 			String filename = followUserName + "_followers.txt";
 			if (nfsService.exists(filename)) {
 				nfsService.append(filename, username); // append to the cache copy
@@ -292,10 +288,9 @@ public class TwitterNode extends MCCNode {
 		} 
 	}
 	
-	private void unfollow(String unfollowUserName) {//done
+	private void unfollow(String unfollowUserName, int transactionId) {//done
 		waitingForResponse = true;
 		try {
-			int transactionId = edu.washington.cs.cse490h.lib.Utility.getRNG().nextInt();
 			String filename = unfollowUserName + "_followers.txt";
 			
 			nfsService.deleteLine(filename, username);
@@ -313,10 +308,9 @@ public class TwitterNode extends MCCNode {
 		} 
 	}
 	
-	private void block(String blockUserName) {//done
+	private void block(String blockUserName, int transactionId) {//done
 		waitingForResponse = true;
 		try {
-			int transactionId = edu.washington.cs.cse490h.lib.Utility.getRNG().nextInt();
 			String filename = username + "_followers.txt";
 			
 			nfsService.deleteLine(filename, blockUserName);
@@ -402,7 +396,7 @@ public class TwitterNode extends MCCNode {
 						System.out.println("User " + user + " already exists.");
 						pollCommand();
 					} else {
-						knownCommand("create " + extraInfo.get(0)); // Retry the transaction.
+						knownCommand("create " + extraInfo.get(0), tid); // Retry the transaction.
 					}
 				} catch (IOException e1) {
 					// TODO Auto-generated catch block
@@ -414,17 +408,17 @@ public class TwitterNode extends MCCNode {
 				pollCommand();
 				break;
 			case TWEET: 
-				knownCommand("tweet " + extraInfo.get(0)); // Retry the transaction.
+				knownCommand("tweet " + extraInfo.get(0), tid); // Retry the transaction.
 				break;
 			case READTWEETS: {
-				knownCommand("readtweets"); // Retry the transaction.
+				knownCommand("readtweets", tid); // Retry the transaction.
 				break;
 			}
 			case FOLLOW: {
 				String followUserName = extraInfo.get(0);
 				try {
 					if (nfsService.exists(followUserName + "_followers.txt")) {
-						knownCommand("follow " + followUserName); // Retry the transaction. Just out of date.
+						knownCommand("follow " + followUserName, tid); // Retry the transaction. Just out of date.
 					} else {
 						System.out.println("The user " + followUserName + " does not exist."); // Abort.
 						pollCommand();
@@ -439,7 +433,7 @@ public class TwitterNode extends MCCNode {
 				String unFollowUserName = extraInfo.get(0);
 				try {
 					if (nfsService.exists(unFollowUserName + "_followers.txt")) {
-						knownCommand("unfollow " + unFollowUserName); // Retry the transaction. Just out of date.
+						knownCommand("unfollow " + unFollowUserName, tid); // Retry the transaction. Just out of date.
 					} else {
 						System.out.println("The user " + unFollowUserName + " does not exist."); // Abort.
 						pollCommand();
@@ -451,7 +445,7 @@ public class TwitterNode extends MCCNode {
 				break;
 			}
 			case BLOCK: 
-				knownCommand("block " + extraInfo.get(0));
+				knownCommand("block " + extraInfo.get(0), tid);
 			case LOGOUT:
 			default:
 				break;
@@ -462,7 +456,8 @@ public class TwitterNode extends MCCNode {
 
 	private void pollCommand() {
 		if (commandQueue.size() > 0) {
-			knownCommand(commandQueue.poll());
+			Pair<String, Integer> commandAndTid = commandQueue.poll();
+			knownCommand(commandAndTid.a, commandAndTid.b);
 		}
 	}
 }
