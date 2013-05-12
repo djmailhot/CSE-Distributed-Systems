@@ -5,7 +5,7 @@ import java.util.List;
 import edu.washington.cs.cse490h.lib.Node;
 
 
-public class ClientActionLogger {
+public class ClientCommandLogger {
 	private static final String prefix = "-clientAction-";
 	
 	private int seqNum;
@@ -16,7 +16,7 @@ public class ClientActionLogger {
 	/* The file system */
 	private NFSService nfs;
 	
-	public ClientActionLogger(Node node){
+	public ClientCommandLogger(Node node){
 		this.node = node;
 		this.nfs = new NFSService(node);
 		
