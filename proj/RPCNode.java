@@ -73,8 +73,19 @@ public abstract class RPCNode extends RIONode {
     RIOSend(destAddr, Protocol.DATA, serialize(bundle, MessageType.RESPONSE));
   }
 
+  /**
+   * Serializes the specified RPCBundle.
+   */
   private byte[] serialize(RPCBundle bundle, MessageType type) {
-    return new byte[0];
+    JSONObject jsonBlob = new JSONObject();
+    try {
+      // TODO: Build a JSONObject from the RPCBundle
+
+    } catch(JSONException e) {
+      throw new IllegalArgumentException("RPCBundle could not be serialized into data message");
+      return null;
+    }
+    return Utility.stringToByteArray(jsonBlob.toString());
   }
 
 
@@ -109,7 +120,7 @@ public abstract class RPCNode extends RIONode {
             LOG.warning("Received invalid message type");
         }
       } catch(IllegalArgumentException e) {
-        LOG.warning("Data message could not be parsed into valid RPCBundle");
+        LOG.warning("Data message could not be deserialized into valid RPCBundle");
       }
     } else {
       // no idea what to do
@@ -118,11 +129,18 @@ public abstract class RPCNode extends RIONode {
 
   private static RPCBundle deserialize(byte[] msg) throws
         IllegalArgumentException {
+    RPCBundle bundle = null;
     try {
+      JSONObject jsonBlob = new JSONObject(Utility.byteArrayToString(msg));
+      // TODO: Build an RPCBundle from the JSONData
+      
+
+
     } catch(JSONException e) {
-      throw new IllegalArgumentException("Data message could not be parsed into valid RPCBundle");
+      throw new IllegalArgumentException("Data message could not be deserialize into valid RPCBundle");
+      return null;
     }
-    return null;
+    return bundle;
   }
 
   /**
@@ -131,7 +149,7 @@ public abstract class RPCNode extends RIONode {
    */
   public static int extractMessageId(byte[] msg) {
     RPCBundle bundle = deserialize(msg);
-    return bundle.transaction.tid;
+    return bundle.tid;
   }
 
   /**
@@ -178,7 +196,9 @@ public abstract class RPCNode extends RIONode {
    * Some sweet ass class.
    */
   public static class RPCBundle {
-    public final MessageType type;
+    public final MessageType type;  // request or response
+    public final int tid;  // transaction id
+    public final boolean success;
     public final NFSTransaction transaction;
     public final List<MCCFileData> filelist;
 
@@ -191,11 +211,13 @@ public abstract class RPCNode extends RIONode {
      * @param transaction
      *            The filesystem transaction to send.
      */
-    public RPCBundle(List<MCCFileData> filelist, NFSTransaction transaction,
-                     MessageType type) {
+    public RPCBundle(MessageType type, boolean success, 
+                     List<MCCFileData> filelist, NFSTransaction transaction) {
+      this.type = type;
+      this.success = success;
       this.filelist = filelist;
       this.transaction = transaction;
-      this.type = type;
+      this.tid = transaction.tid;
     }
   }
 }
