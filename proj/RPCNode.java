@@ -80,10 +80,11 @@ public abstract class RPCNode extends RIONode {
     JSONObject jsonBlob = new JSONObject();
     try {
       // TODO: Build a JSONObject from the RPCBundle
+      if(true) 
+        throw new JSONException("you may or may not need me");
 
     } catch(JSONException e) {
       throw new IllegalArgumentException("RPCBundle could not be serialized into data message");
-      return null;
     }
     return Utility.stringToByteArray(jsonBlob.toString());
   }
@@ -138,7 +139,6 @@ public abstract class RPCNode extends RIONode {
 
     } catch(JSONException e) {
       throw new IllegalArgumentException("Data message could not be deserialize into valid RPCBundle");
-      return null;
     }
     return bundle;
   }

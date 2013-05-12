@@ -36,10 +36,11 @@ public class NFSService {
    *
    * If the file already exists, nothing happens.
    */
-  public void create(String filename) throws IOException {
+  public boolean create(String filename) throws IOException {
     //System.out.println(String.format("create %s", filename));
     PersistentStorageWriter writer = node.getWriter(filename, false);
     writer.close();
+    return exists(filename);
   }
 
   /**

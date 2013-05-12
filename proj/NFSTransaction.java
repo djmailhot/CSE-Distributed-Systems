@@ -36,7 +36,7 @@ public class NFSTransaction {
 
 
     private NFSTransaction(Builder b) {
-        this.tid = tid;
+        this.tid = b.tid;
         this.ops = Collections.unmodifiableList(b.ops);
         assert(checkRep());
     }
@@ -110,22 +110,27 @@ public class NFSTransaction {
 
         public Builder touchFile(String filename) {
             ops.add(new NFSOperation(NFSOpType.TOUCHFILE, filename));
+            return this;
         }
 
         public Builder createFile(String filename) {
             ops.add(new NFSOperation(NFSOpType.CREATEFILE, filename));
+            return this;
         }
 
         public Builder appendLine(String filename, String line) {
             ops.add(new NFSOperation(NFSOpType.APPENDLINE, filename, line));
+            return this;
         }
 
         public Builder deleteFile(String filename) {
             ops.add(new NFSOperation(NFSOpType.DELETEFILE, filename));
+            return this;
         }
 
         public Builder deleteLine(String filename, String line) {
             ops.add(new NFSOperation(NFSOpType.DELETELINE, filename, line));
+            return this;
         }
 
         public NFSTransaction build() {
