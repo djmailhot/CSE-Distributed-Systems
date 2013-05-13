@@ -50,7 +50,7 @@ public class TwitterNode extends MCCNode {
 		System.out.println("TwitterNode " + addr + " starting.");
 		List<String> file;
 		try {
-			file = nfsService.read("username.txt");
+			file = read("username.txt");
 			
 			List<Pair<String, Integer>> loggedCommands = this.ccl.loadLogs();
 			for(Pair<String, Integer> s : loggedCommands){
@@ -182,22 +182,16 @@ public class TwitterNode extends MCCNode {
 	
 	private void create(String user, int transactionId) {//done
 		waitingForResponse = true;
-		try {
-			String filename = user + "_followers.txt";
+		String filename = user + "_followers.txt";
 
-			nfsService.create(filename);
-			mapUUIDs(transactionId, TwitterOp.CREATE, Arrays.asList(user));
-			
-			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
-			b.createFile(filename);
-			
-			submitTransaction(DEST_ADDR, b.build());
-			System.out.println("create user commit sent");
-			
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} 
+		//create(filename);
+		mapUUIDs(transactionId, TwitterOp.CREATE, Arrays.asList(user));
+		
+		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
+		b.createFile(filename);
+		
+		submitTransaction(DEST_ADDR, b.build());
+		System.out.println("create user commit sent"); 
 	}
 	
 	private void login(String user, int transactionId) {//done
@@ -226,13 +220,16 @@ public class TwitterNode extends MCCNode {
 		waitingForResponse = true;
 		try {
 			String filename = username + "_followers.txt";
-			List<String> followers = nfsService.read(filename); // read the cached copy of the followers
+			List<String> followers = read(filename); // read the cached copy of the followers
 	
 			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
 			b.touchFile(filename);
 			
-			for (String follower : followers) {
-				nfsService.append(follower + "_stream.txt", username + ": " + tweet);
+			if (followers != null) {
+				for (String follower : followers) {
+					//append(follower + "_stream.txt", username + ": " + tweet);
+					b.appendLine(follower + "_stream.txt", username + ": " + tweet);
+				}
 			}
 			mapUUIDs(transactionId, TwitterOp.TWEET, Arrays.asList(tweet));
 			
@@ -248,8 +245,8 @@ public class TwitterNode extends MCCNode {
 		waitingForResponse = true;
 		try {
 			String filename = username + "_stream.txt";
-			List<String> tweets = nfsService.read(filename); // read the cached copy of the tweets
-			nfsService.delete(filename);
+			List<String> tweets = read(filename); // read the cached copy of the tweets
+			//nfsService.delete(filename);
 			mapUUIDs(transactionId, TwitterOp.READTWEETS, tweets);
 			
 			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
@@ -268,8 +265,8 @@ public class TwitterNode extends MCCNode {
 		waitingForResponse = true;
 		try {
 			String filename = followUserName + "_followers.txt";
-			if (nfsService.exists(filename)) {
-				nfsService.append(filename, username); // append to the cache copy
+			if (exists(filename)) {
+				//nfsService.append(filename, username); // append to the cache copy
 			}
 
 			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
@@ -288,42 +285,32 @@ public class TwitterNode extends MCCNode {
 	
 	private void unfollow(String unfollowUserName, int transactionId) {//done
 		waitingForResponse = true;
-		try {
-			String filename = unfollowUserName + "_followers.txt";
-			
-			nfsService.deleteLine(filename, username);
+		String filename = unfollowUserName + "_followers.txt";
+		
+		//nfsService.deleteLine(filename, username);
 
-			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
-			b.deleteLine(filename, username);
-			
-			mapUUIDs(transactionId, TwitterOp.FOLLOW, Arrays.asList(unfollowUserName));
-			
-			submitTransaction(DEST_ADDR, b.build());
-			System.out.println("unfollow " + unfollowUserName + " commit sent");
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} 
+		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
+		b.deleteLine(filename, username);
+		
+		mapUUIDs(transactionId, TwitterOp.FOLLOW, Arrays.asList(unfollowUserName));
+		
+		submitTransaction(DEST_ADDR, b.build());
+		System.out.println("unfollow " + unfollowUserName + " commit sent"); 
 	}
 	
 	private void block(String blockUserName, int transactionId) {//done
 		waitingForResponse = true;
-		try {
-			String filename = username + "_followers.txt";
-			
-			nfsService.deleteLine(filename, blockUserName);
+		String filename = username + "_followers.txt";
+		
+		//nfsService.deleteLine(filename, blockUserName);
 
-			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
-			b.deleteLine(filename, blockUserName);
-			
-			mapUUIDs(transactionId, TwitterOp.FOLLOW, Arrays.asList(blockUserName));
-			
-			submitTransaction(DEST_ADDR, b.build());
-			System.out.println("block " + blockUserName + " commit sent");
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} 
+		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
+		b.deleteLine(filename, blockUserName);
+		
+		mapUUIDs(transactionId, TwitterOp.FOLLOW, Arrays.asList(blockUserName));
+		
+		submitTransaction(DEST_ADDR, b.build());
+		System.out.println("block " + blockUserName + " commit sent"); 
 	}
 	
 	private void mapUUIDs(Integer uuid, TwitterOp op, List<String> extraInfo){
@@ -390,7 +377,7 @@ public class TwitterNode extends MCCNode {
 			case CREATE: 
 				String user = extraInfo.get(0);
 				try {
-					if (nfsService.exists(user + "_followers.txt")) {
+					if (exists(user + "_followers.txt")) {
 						System.out.println("User " + user + " already exists.");
 						pollCommand();
 					} else {
@@ -415,7 +402,7 @@ public class TwitterNode extends MCCNode {
 			case FOLLOW: {
 				String followUserName = extraInfo.get(0);
 				try {
-					if (nfsService.exists(followUserName + "_followers.txt")) {
+					if (exists(followUserName + "_followers.txt")) {
 						knownCommand("follow " + followUserName, tid); // Retry the transaction. Just out of date.
 					} else {
 						System.out.println("The user " + followUserName + " does not exist."); // Abort.
@@ -430,7 +417,7 @@ public class TwitterNode extends MCCNode {
 			case UNFOLLOW: {
 				String unFollowUserName = extraInfo.get(0);
 				try {
-					if (nfsService.exists(unFollowUserName + "_followers.txt")) {
+					if (exists(unFollowUserName + "_followers.txt")) {
 						knownCommand("unfollow " + unFollowUserName, tid); // Retry the transaction. Just out of date.
 					} else {
 						System.out.println("The user " + unFollowUserName + " does not exist."); // Abort.
