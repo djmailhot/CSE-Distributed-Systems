@@ -272,7 +272,7 @@ public abstract class RPCNode extends RIONode {
     }
     
     public String toString() {
-    	return "Type: " + type + ", Tid: " + tid;
+    	return "Type: " + type + ", Tid: " + tid + ", List: " + filelist;
     }
   }
 }
