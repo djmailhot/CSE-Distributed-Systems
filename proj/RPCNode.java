@@ -80,8 +80,10 @@ public abstract class RPCNode extends RIONode {
     JSONObject jsonBlob = new JSONObject();
     try {
       // TODO: Build a JSONObject from the RPCBundle
-      if(true) 
-        throw new JSONException("you may or may not need me");
+    	jsonBlob.append("bundle", bundle);
+    	jsonBlob.append("type", type);
+      //if(true) 
+      //  throw new JSONException("you may or may not need me");
 
     } catch(JSONException e) {
       throw new IllegalArgumentException("RPCBundle could not be serialized into data message");
@@ -134,6 +136,7 @@ public abstract class RPCNode extends RIONode {
     try {
       JSONObject jsonBlob = new JSONObject(Utility.byteArrayToString(msg));
       // TODO: Build an RPCBundle from the JSONData
+      bundle = (RPCBundle) jsonBlob.get("bundle");
       
 
 
