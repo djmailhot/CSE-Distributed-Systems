@@ -1,6 +1,13 @@
 import edu.washington.cs.cse490h.lib.Utility;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutput;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -56,7 +63,7 @@ public abstract class RPCNode extends RIONode {
    *            If null, won't send any transaction.
 	 */
   public void RPCSendRequest(int destAddr, RPCBundle bundle) {
-    RIOSend(destAddr, Protocol.DATA, serialize(bundle, MessageType.REQUEST));
+    RIOSend(destAddr, Protocol.DATA, RPCBundle.serialize(bundle));
   }
 
 	/**
@@ -70,27 +77,8 @@ public abstract class RPCNode extends RIONode {
    *            They must also contain file contents.
 	 */
   public void RPCSendResponse(int destAddr, RPCBundle bundle) {
-    RIOSend(destAddr, Protocol.DATA, serialize(bundle, MessageType.RESPONSE));
+    RIOSend(destAddr, Protocol.DATA, RPCBundle.serialize(bundle));
   }
-
-  /**
-   * Serializes the specified RPCBundle.
-   */
-  private byte[] serialize(RPCBundle bundle, MessageType type) {
-    JSONObject jsonBlob = new JSONObject();
-    try {
-      // TODO: Build a JSONObject from the RPCBundle
-    	jsonBlob.append("bundle", bundle);
-    	jsonBlob.append("type", type);
-      //if(true) 
-      //  throw new JSONException("you may or may not need me");
-
-    } catch(JSONException e) {
-      throw new IllegalArgumentException("RPCBundle could not be serialized into data message");
-    }
-    return Utility.stringToByteArray(jsonBlob.toString());
-  }
-
 
 	//----------------------------------------------------------------------------
 	// receive routines
@@ -110,7 +98,7 @@ public abstract class RPCNode extends RIONode {
 	public void onRIOReceive(Integer from, int protocol, byte[] msg) {
     if(protocol == Protocol.DATA) {
       try {
-        RPCBundle bundle = deserialize(msg);
+        RPCBundle bundle = RPCBundle.deserialize(msg);
         MessageType messageType = bundle.type;
         switch (messageType) {
           case REQUEST:
@@ -130,28 +118,12 @@ public abstract class RPCNode extends RIONode {
     }
   }
 
-  private static RPCBundle deserialize(byte[] msg) throws
-        IllegalArgumentException {
-    RPCBundle bundle = null;
-    try {
-      JSONObject jsonBlob = new JSONObject(Utility.byteArrayToString(msg));
-      // TODO: Build an RPCBundle from the JSONData
-      bundle = (RPCBundle) jsonBlob.get("bundle");
-      
-
-
-    } catch(JSONException e) {
-      throw new IllegalArgumentException("Data message could not be deserialize into valid RPCBundle");
-    }
-    return bundle;
-  }
-
   /**
    * Returns the transaction id of the specified message.
    * @return an int, the transaction id of this message
    */
   public static int extractMessageId(byte[] msg) {
-    RPCBundle bundle = deserialize(msg);
+    RPCBundle bundle = RPCBundle.deserialize(msg);
     return bundle.tid;
   }
 
@@ -160,7 +132,7 @@ public abstract class RPCNode extends RIONode {
    * @return a MessageType describing the type of message received
    */
   public static MessageType extractMessageType(byte[] msg) {
-    RPCBundle bundle = deserialize(msg);
+    RPCBundle bundle = RPCBundle.deserialize(msg);
     return bundle.type;
   }
   
@@ -198,7 +170,7 @@ public abstract class RPCNode extends RIONode {
   /**
    * Some sweet ass class.
    */
-  public static class RPCBundle {
+  public static class RPCBundle implements Serializable {
     public final MessageType type;  // request or response
     public final int tid;  // transaction id
     public final boolean success;
@@ -217,7 +189,7 @@ public abstract class RPCNode extends RIONode {
      * @param transaction
      *            The filesystem transaction to include.
      */
-    private RPCBundle(MessageType type, boolean success, 
+    RPCBundle(MessageType type, boolean success, 
                      List<MCCFileData> filelist, NFSTransaction transaction) {
       this.type = type;
       this.success = success;
@@ -251,6 +223,56 @@ public abstract class RPCNode extends RIONode {
                                               boolean success) {
       return new RPCBundle(MessageType.RESPONSE, true, 
                            requestBundle.filelist, requestBundle.transaction);
+    }
+    
+    public static byte[] serialize(RPCBundle bundle) {
+    	ByteArrayOutputStream bos = new ByteArrayOutputStream();
+    	ObjectOutput out = null;
+    	try {
+    	  out = new ObjectOutputStream(bos);   
+    	  out.writeObject(bundle);
+    	  byte[] bytes = bos.toByteArray();
+    	  return bytes;
+    	} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} finally {
+    	  try {
+      	  out.close();
+					bos.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+    	}
+    	return null;
+    }
+    
+    public static RPCBundle deserialize(byte[] bytes) {
+    	ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
+    	ObjectInput in = null;
+    	try {
+    	  in = new ObjectInputStream(bis);
+    	  Object o = in.readObject(); 
+    	  RPCBundle bundle = (RPCBundle) o;
+    	  return bundle;
+    	} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} finally {
+    	  try {
+					bis.close();
+	    	  in.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+    	}
+      return null;
+    }
+    
+    public String toString() {
+    	return "Type: " + type + ", Tid: " + tid;
     }
   }
 }

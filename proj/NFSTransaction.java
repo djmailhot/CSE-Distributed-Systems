@@ -1,3 +1,4 @@
+import java.io.Serializable;
 import java.util.*;
 
 /**
@@ -27,7 +28,7 @@ import java.util.*;
  * would return a NFSTransaction object representing a create file and an 
  * append data filesystem operation as well as a file read dependency.
  */
-public class NFSTransaction {
+public class NFSTransaction implements Serializable {
 
     /** The unique id for this transaction. */
     public final int tid; 
