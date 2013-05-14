@@ -43,7 +43,16 @@ public class NFSTransaction implements Serializable {
     }
 
     private boolean checkRep() {
-      return tid > 0 && ops != null && !ops.contains(null);
+        return tid > 0 && ops != null && !ops.contains(null);
+    }
+
+    public String toString() {
+        StringBuilder b = new StringBuilder("NFSTransaction");
+        b.append(String.format("[%d]:", tid));
+        for(NFSOperation op : ops) {
+            b.append(String.format("\n%s", op));
+        }
+        return b.toString();
     }
 
     /**
@@ -66,6 +75,10 @@ public class NFSTransaction implements Serializable {
 
         public NFSOperation(NFSOpType opType, String filename) {
             this(opType, filename, null);
+        }
+
+        public String toString() {
+            return String.format("NFSOp{%s, %s, %s}", opType, filename, dataline);
         }
     }
 

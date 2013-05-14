@@ -274,7 +274,12 @@ public abstract class RPCNode extends RIONode {
     }
     
     public String toString() {
-    	return "Type: " + type + ", Tid: " + tid;
+      if(type == MessageType.REQUEST) {
+        return String.format("RPCBundle{REQUEST, %d}", tid);
+      } else {
+        return String.format("RPCBundle{RESPONSE, %d, Success? %s}",
+                              tid, success);
+      }
     }
   }
 }
