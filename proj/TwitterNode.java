@@ -76,10 +76,87 @@ public class TwitterNode extends MCCNode {
 		int transactionId = edu.washington.cs.cse490h.lib.Utility.getRNG().nextInt();
     transactionId = Math.abs(transactionId);
 		if(command != null && knownCommand(command.toLowerCase(), transactionId)){
-			return;
+			if (doCommand(command.toLowerCase(), transactionId)) {
+				return;
+			}
 		}
 
 		System.err.println("Unrecognized command: " + command + ", username: " + username);
+	}
+	
+	private boolean doCommand(String command, int transactionId) {
+		if (command == null) { return false; }
+		
+		String[] parsedCommand = command.split(" ");
+		String commandName = parsedCommand[0];
+		if(commandName.equals("login")) {
+				if (waitingForResponse) {
+					System.out.println("Please wait!!");
+					commandQueue.offer(new Pair(command, transactionId));
+				} else {
+					System.out.println("Logging in!!!!");
+					login(parsedCommand[1], transactionId);
+				}
+			
+			return true;
+		} else if (commandName.equals("logout") && username != null) {
+			if (waitingForResponse) {
+				System.out.println("Please wait!!");
+				commandQueue.offer(new Pair(command, transactionId));
+			} else {
+				logout(transactionId);	
+			}
+			return true;
+		} else if (commandName.equals("create")) {
+				if (waitingForResponse) {
+					System.out.println("Please wait!!");
+					commandQueue.offer(new Pair(command, transactionId));
+				} else {
+					create(parsedCommand[1], transactionId);
+				}
+			return true;
+		} else if (commandName.equals("tweet") && username != null) {
+			if (waitingForResponse) {
+				System.out.println("Please wait!!");
+				commandQueue.offer(new Pair(command, transactionId));
+			} else {
+				tweet(command.substring(5).trim(), transactionId);
+			}
+			return true;
+		} else if (commandName.equals("readtweets") && username != null) {
+			if (waitingForResponse) {
+				System.out.println("Please wait!!");
+				commandQueue.offer(new Pair(command, transactionId));
+			} else {
+				readTweets(transactionId);
+			}
+			return true;
+		} else if (commandName.equals("follow") && username != null) {
+			if (waitingForResponse) {
+				System.out.println("Please wait!!");
+				commandQueue.offer(new Pair(command, transactionId));
+			} else {
+				follow(parsedCommand[1], transactionId);
+			}
+			return true;
+		} else if (commandName.equals("unfollow") && username != null) {
+			if (waitingForResponse) {
+				System.out.println("Please wait!!");
+				commandQueue.offer(new Pair(command, transactionId));
+			} else {
+				unfollow(parsedCommand[1], transactionId);
+			}
+			return true;
+		} else if (commandName.equals("block") && username != null) {
+			if (waitingForResponse) {
+				System.out.println("Please wait!!");
+				commandQueue.offer(new Pair(command, transactionId));
+			} else {
+				block(parsedCommand[1], transactionId);
+			}
+			return true;
+		}
+		return false;
 	}
 	
 	private boolean knownCommand(String command, int transactionId) {
@@ -91,35 +168,16 @@ public class TwitterNode extends MCCNode {
 			this.ccl.logCommand(command, transactionId);
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a username.");
-			} else {
-				if (waitingForResponse) {
-					System.out.println("Please wait!!");
-					commandQueue.offer(new Pair(command, transactionId));
-				} else {
-					login(parsedCommand[1], transactionId);
-				}
 			}
+			System.out.println("Login is a known command");
 			return true;
 		} else if (commandName.equals("logout") && username != null) {
 			this.ccl.logCommand(command, transactionId);
-			if (waitingForResponse) {
-				System.out.println("Please wait!!");
-				commandQueue.offer(new Pair(command, transactionId));
-			} else {
-				logout(transactionId);	
-			}
 			return true;
 		} else if (commandName.equals("create")) {
 			this.ccl.logCommand(command, transactionId);
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a username.");
-			} else {
-				if (waitingForResponse) {
-					System.out.println("Please wait!!");
-					commandQueue.offer(new Pair(command, transactionId));
-				} else {
-					create(parsedCommand[1], transactionId);
-				}
 			}
 			return true;
 		} else if (commandName.equals("tweet") && username != null) {
@@ -127,59 +185,26 @@ public class TwitterNode extends MCCNode {
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a tweet.");
 			}
-			if (waitingForResponse) {
-				System.out.println("Please wait!!");
-				commandQueue.offer(new Pair(command, transactionId));
-			} else {
-				tweet(command.substring(5).trim(), transactionId);
-			}
 			return true;
 		} else if (commandName.equals("readtweets") && username != null) {
 			this.ccl.logCommand(command, transactionId);
-			if (waitingForResponse) {
-				System.out.println("Please wait!!");
-				commandQueue.offer(new Pair(command, transactionId));
-			} else {
-				readTweets(transactionId);
-			}
 			return true;
 		} else if (commandName.equals("follow") && username != null) {
 			this.ccl.logCommand(command, transactionId);
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a username.");
-			} else {
-				if (waitingForResponse) {
-					System.out.println("Please wait!!");
-					commandQueue.offer(new Pair(command, transactionId));
-				} else {
-					follow(parsedCommand[1], transactionId);
-				}
-			} 
+			}
 			return true;
 		} else if (commandName.equals("unfollow") && username != null) {
 			this.ccl.logCommand(command, transactionId);
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a username.");
-			} else {
-				if (waitingForResponse) {
-					System.out.println("Please wait!!");
-					commandQueue.offer(new Pair(command, transactionId));
-				} else {
-					unfollow(parsedCommand[1], transactionId);
-				}
 			}
 			return true;
 		} else if (commandName.equals("block") && username != null) {
 			this.ccl.logCommand(command, transactionId);
 			if (parsedCommand.length < 2) {
 				System.err.println("Must supply a username.");
-			} else {
-				if (waitingForResponse) {
-					System.out.println("Please wait!!");
-					commandQueue.offer(new Pair(command, transactionId));
-				} else {
-					block(parsedCommand[1], transactionId);
-				}
 			}
 			return true;
 		}
@@ -399,7 +424,7 @@ public class TwitterNode extends MCCNode {
 						System.out.println("User " + user + " already exists.");
 						pollCommand(tid);
 					} else {
-						knownCommand("create " + extraInfo.get(0), tid); // Retry the transaction.
+						doCommand("create " + extraInfo.get(0), tid); // Retry the transaction.
 					}
 				} catch (IOException e1) {
 					// TODO Auto-generated catch block
@@ -411,17 +436,17 @@ public class TwitterNode extends MCCNode {
 				pollCommand(tid);
 				break;
 			case TWEET: 
-				knownCommand("tweet " + extraInfo.get(0), tid); // Retry the transaction.
+				doCommand("tweet " + extraInfo.get(0), tid); // Retry the transaction.
 				break;
 			case READTWEETS: {
-				knownCommand("readtweets", tid); // Retry the transaction.
+				doCommand("readtweets", tid); // Retry the transaction.
 				break;
 			}
 			case FOLLOW: {
 				String followUserName = extraInfo.get(0);
 				try {
 					if (exists(followUserName + "_followers.txt")) {
-						knownCommand("follow " + followUserName, tid); // Retry the transaction. Just out of date.
+						doCommand("follow " + followUserName, tid); // Retry the transaction. Just out of date.
 					} else {
 						System.out.println("The user " + followUserName + " does not exist."); // Abort.
 						pollCommand(tid);
@@ -436,7 +461,7 @@ public class TwitterNode extends MCCNode {
 				String unFollowUserName = extraInfo.get(0);
 				try {
 					if (exists(unFollowUserName + "_followers.txt")) {
-						knownCommand("unfollow " + unFollowUserName, tid); // Retry the transaction. Just out of date.
+						doCommand("unfollow " + unFollowUserName, tid); // Retry the transaction. Just out of date.
 					} else {
 						System.out.println("The user " + unFollowUserName + " does not exist."); // Abort.
 						pollCommand(tid);
@@ -461,7 +486,7 @@ public class TwitterNode extends MCCNode {
 		ccl.deleteLog(currentTid);
 		if (commandQueue.size() > 0) {
 			Pair<String, Integer> commandAndTid = commandQueue.poll();
-			knownCommand(commandAndTid.a, commandAndTid.b);
+			doCommand(commandAndTid.a, commandAndTid.b);
 		}
 	}
 }
