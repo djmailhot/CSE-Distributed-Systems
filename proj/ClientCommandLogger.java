@@ -8,6 +8,9 @@ import plume.Pair;
 import edu.washington.cs.cse490h.lib.Node;
 
 
+/* Logs client action intents.
+ * 
+ */
 public class ClientCommandLogger {
 	private static final String prefix = "-clientAction-";
 	
@@ -90,7 +93,7 @@ public class ClientCommandLogger {
 	}
 	
 	
-	/* Deletes the last log written by this logger
+	/* Deletes the a 
 	 */
 	public void deleteLog(int transID){
 	    try {
