@@ -246,7 +246,7 @@ public class TwitterNode extends MCCNode {
 		try {
 			nfsService.delete("username.txt");
       username = null;
-			System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+			//System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 		} catch (IOException e) {
 		}
 		System.out.println("Logout successful.");
@@ -426,7 +426,7 @@ public class TwitterNode extends MCCNode {
 				String user = extraInfo.get(0);
 				try {
 					if (exists(user + "_followers.txt")) {
-						System.out.println("User " + user + " already exists.");
+						System.out.println("User " + user + " already exists."); // Abort
 						pollCommand(tid);
 					} else {
 						doCommand("create " + extraInfo.get(0), tid); // Retry the transaction.
