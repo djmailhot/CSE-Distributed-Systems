@@ -51,7 +51,7 @@ public class NFSTransaction implements Serializable {
         StringBuilder b = new StringBuilder("NFSTransaction");
         b.append(String.format("[%d]:", tid));
         for(NFSOperation op : ops) {
-            b.append(String.format("\n%s", op));
+            b.append(String.format("\n\t\t%s", op));
         }
         return b.toString();
     }

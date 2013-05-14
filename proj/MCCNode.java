@@ -161,6 +161,9 @@ public abstract class MCCNode extends RPCNode {
 
             success = success && nfsService.deleteLine(newVersionedFile, op.dataline);
             break;
+          case TOUCHFILE:
+            // do nothing
+            break;
           default:
             Log.w(TAG, "Received invalid operation type");
         }
@@ -195,7 +198,7 @@ public abstract class MCCNode extends RPCNode {
    * check and transaction.
    *
    * @return a list of MCCFileData objects of file contents for any checked 
-   * filedata that had an invalid version, or null if the checked filedata has 
+   * filedata that had an invalid version, or empty if the checked filedata has 
    * all valid versions.
    */
   private List<MCCFileData> checkVersions(List<MCCFileData> filedataCheck,
@@ -375,12 +378,12 @@ public abstract class MCCNode extends RPCNode {
 	//----------------------------------------------------------------------------
 
   public void onRPCRequest(Integer from, RPCBundle bundle) {
-    Log.i(TAG, String.format("RPCRequest received from %d", from));
+    Log.i(TAG, String.format("From node %d, received %s", from, bundle));
     onMCCRequest(from, bundle.filelist, bundle.transaction);
   }
 
   public void onRPCResponse(Integer from, RPCBundle bundle) {
-    Log.i(TAG, String.format("RPCResponse received from %d", from));
+    Log.i(TAG, String.format("From node %d, received %s", from, bundle));
     boolean success = bundle.success;
     if(success) {
       // if successful, apply updates locally
@@ -410,7 +413,7 @@ public abstract class MCCNode extends RPCNode {
     RPCBundle responseBundle = null;
     // verify that the filedataCheck is up-to-version
     List<MCCFileData> filedataUpdate = checkVersions(filedataCheck, transaction);
-    if(filedataUpdate == null) {
+    if(filedataUpdate.isEmpty()) {
       // UP-TO-VERSION!  COMMIT THAT SUCKA
       commitTransaction(transaction);
       responseBundle = RPCBundle.newResponseBundle(filedataUpdate, transaction, true);
