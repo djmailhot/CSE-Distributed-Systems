@@ -215,6 +215,7 @@ public class TwitterNode extends MCCNode {
 		} catch (IOException e) {
 		}
 		System.out.println("Logout successful.");
+		pollCommand(transactionId); // Next command.
 	}
 	
 	private void tweet(String tweet, int transactionId){//done
@@ -330,16 +331,16 @@ public class TwitterNode extends MCCNode {
 			switch(op){		
 			case CREATE: 
 				System.out.println("You created user " + extraInfo.get(0));
-				pollCommand();
+				pollCommand(tid);
 				break;
 			case LOGIN: 
 				username = extraInfo.get(0);
 				System.out.println("You are logged in as " + username);
-				pollCommand();
+				pollCommand(tid);
 				break;
 			case TWEET: 
 				System.out.println("You tweeted " + extraInfo.get(0));
-				pollCommand();
+				pollCommand(tid);
 				break;
 			case READTWEETS: {
 				// We successfully read and deleted the stream file, so now display the tweets to the user.
@@ -350,24 +351,24 @@ public class TwitterNode extends MCCNode {
 				} else {
 					System.out.println("You have no unread tweets.");
 				}
-				pollCommand();
+				pollCommand(tid);
 				break;
 			}
 			case FOLLOW: {
 				// updateAllFiles(DEST_ADDR); // not needed anymore. probably. - David
 				System.out.println("You are now following " + extraInfo.get(0));
-				pollCommand();
+				pollCommand(tid);
 				break;
 				
 			}
 			case UNFOLLOW: 
 				// updateAllFiles(DEST_ADDR); // not needed anymore. probably. - David
 				System.out.println("You are no longer following " + extraInfo.get(0));
-				pollCommand();
+				pollCommand(tid);
 				break;
 			case BLOCK: 
 				System.out.println("You have blocked " + extraInfo.get(0));
-				pollCommand();
+				pollCommand(tid);
 			case LOGOUT:
 			default:
 				break;
@@ -380,7 +381,7 @@ public class TwitterNode extends MCCNode {
 				try {
 					if (exists(user + "_followers.txt")) {
 						System.out.println("User " + user + " already exists.");
-						pollCommand();
+						pollCommand(tid);
 					} else {
 						knownCommand("create " + extraInfo.get(0), tid); // Retry the transaction.
 					}
@@ -391,7 +392,7 @@ public class TwitterNode extends MCCNode {
 			case LOGIN: 
 				System.out.println("User " + extraInfo.get(0) + " does not exist.");
 				username = null;
-				pollCommand();
+				pollCommand(tid);
 				break;
 			case TWEET: 
 				knownCommand("tweet " + extraInfo.get(0), tid); // Retry the transaction.
@@ -407,7 +408,7 @@ public class TwitterNode extends MCCNode {
 						knownCommand("follow " + followUserName, tid); // Retry the transaction. Just out of date.
 					} else {
 						System.out.println("The user " + followUserName + " does not exist."); // Abort.
-						pollCommand();
+						pollCommand(tid);
 					}
 				} catch (IOException e) {
 					// TODO Auto-generated catch block
@@ -422,7 +423,7 @@ public class TwitterNode extends MCCNode {
 						knownCommand("unfollow " + unFollowUserName, tid); // Retry the transaction. Just out of date.
 					} else {
 						System.out.println("The user " + unFollowUserName + " does not exist."); // Abort.
-						pollCommand();
+						pollCommand(tid);
 					}
 				} catch (IOException e) {
 					// TODO Auto-generated catch block
@@ -440,7 +441,8 @@ public class TwitterNode extends MCCNode {
 		
 	}	
 
-	private void pollCommand() {
+	private void pollCommand(int currentTid) {
+		ccl.deleteLog(currentTid);
 		if (commandQueue.size() > 0) {
 			Pair<String, Integer> commandAndTid = commandQueue.poll();
 			knownCommand(commandAndTid.a, commandAndTid.b);
