@@ -50,7 +50,7 @@ public class TwitterNode extends MCCNode {
 		System.out.println("TwitterNode " + addr + " starting.");
 		List<String> file;
 		try {
-			file = read("username.txt");
+			file = nfsService.read("username.txt");
 			
 			List<Pair<String, Integer>> loggedCommands = this.ccl.loadLogs();
 			for(Pair<String, Integer> s : loggedCommands){
@@ -61,6 +61,7 @@ public class TwitterNode extends MCCNode {
 			file = null;
 		}
 		username = (file == null || file.size() == 0) ? null : file.get(0);
+
 		System.out.println("username: " + username);
 		super.start();
 	}
@@ -73,7 +74,7 @@ public class TwitterNode extends MCCNode {
 			return;
 		}
 
-		System.err.println("Unrecognized command: " + command);
+		System.err.println("Unrecognized command: " + command + ", username: " + username);
 	}
 	
 	private boolean knownCommand(String command, int transactionId) {
@@ -212,6 +213,7 @@ public class TwitterNode extends MCCNode {
 		try {
 			nfsService.delete("username.txt");
       username = null;
+			System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 		} catch (IOException e) {
 		}
 		System.out.println("Logout successful.");
@@ -335,6 +337,12 @@ public class TwitterNode extends MCCNode {
 				break;
 			case LOGIN: 
 				username = extraInfo.get(0);
+				try {
+					nfsService.append("username.txt", username);
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 				System.out.println("You are logged in as " + username);
 				pollCommand(tid);
 				break;
