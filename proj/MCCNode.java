@@ -259,8 +259,10 @@ public abstract class MCCNode extends RPCNode {
       } else if (op.opType.equals(NFSTransaction.NFSOpType.APPENDLINE)){
       	// Here, we are trying to append a line to a file that does not yet exist. 
       	// This should be ok.
+      	System.out.println("append to a non-existant file !!!!!!!!!!!!!!!!!");
       } else {
         // We've got a problem
+      	System.out.println(op.opType);
         throw new IllegalStateException("filename not found in filedataCheck list");
       }
     }

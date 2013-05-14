@@ -216,14 +216,14 @@ public class TwitterNode extends MCCNode {
 	private void create(String user, int transactionId) {//done
 		waitingForResponse = true;
 		String filename = user + "_followers.txt";
-		String streamFilename = user + "_stream.txt";
+		//String streamFilename = user + "_stream.txt";
 
 		//create(filename);
 		mapUUIDs(transactionId, TwitterOp.CREATE, Arrays.asList(user));
 		
 		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
 		b.createFile(filename);
-		b.createFile(streamFilename);
+		//b.createFile(streamFilename); // ASSUME APPEND WILL CREATE THIS FILE
 		
 		submitTransaction(DEST_ADDR, b.build());
 		System.out.println("create user commit sent"); 
@@ -289,7 +289,7 @@ public class TwitterNode extends MCCNode {
 			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
 			b.touchFile(filename);
 			b.deleteFile(filename);
-			b.createFile(filename);
+			//b.createFile(filename); // ASSUME APPEND WILL CREATE THIS FILE
 			
 			submitTransaction(DEST_ADDR, b.build());
 			System.out.println("read tweets commit sent");
