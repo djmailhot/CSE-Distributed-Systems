@@ -138,11 +138,18 @@ public abstract class MCCNode extends RPCNode {
             success = success && nfsService.create(newVersionedFile);
             break;
           case APPENDLINE:
-            // make sure we don't overwrite the blank 0-version file
-            version = Math.max(fileVersions.get(filename), 0) + 1;
+          	if (fileVersions.get(filename) == null) {
+          		// file does not yet exists
+          		version = 0;
+          	} else {
+              // make sure we don't overwrite the blank 0-version file
+          		version = Math.max(fileVersions.get(filename), 0) + 1;
+          	}
             fileVersions.put(filename, version);
             newVersionedFile = getVersionedFilename(filename);
-            success = success && nfsService.copy(oldVersionedFile, newVersionedFile);
+            if (version > 0) { // only do this for appends to existing files
+            	success = success && nfsService.copy(oldVersionedFile, newVersionedFile);
+            }
 
             success = success && nfsService.append(newVersionedFile, op.dataline);
             break;
@@ -249,6 +256,9 @@ public abstract class MCCNode extends RPCNode {
             Log.e(TAG, "failure when trying to access file for version update");
           }
         } // VALID
+      } else if (op.opType.equals(NFSTransaction.NFSOpType.APPENDLINE)){
+      	// Here, we are trying to append a line to a file that does not yet exist. 
+      	// This should be ok.
       } else {
         // We've got a problem
         throw new IllegalStateException("filename not found in filedataCheck list");
