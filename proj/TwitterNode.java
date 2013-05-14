@@ -46,6 +46,8 @@ public class TwitterNode extends MCCNode {
 		BLOCK;
 	}
 	
+	int count = 0;
+	
 	public void start() {	
 		System.out.println("TwitterNode " + addr + " starting.");
 		List<String> file;
@@ -61,7 +63,10 @@ public class TwitterNode extends MCCNode {
 			file = null;
 		}
 		username = (file == null || file.size() == 0) ? null : file.get(0);
-
+		if (username == null && count > 0) {
+			throw new RuntimeException();
+		}
+		count++;
 		System.out.println("username: " + username);
 		super.start();
 	}
@@ -185,12 +190,14 @@ public class TwitterNode extends MCCNode {
 	private void create(String user, int transactionId) {//done
 		waitingForResponse = true;
 		String filename = user + "_followers.txt";
+		String streamFilename = user + "_stream.txt";
 
 		//create(filename);
 		mapUUIDs(transactionId, TwitterOp.CREATE, Arrays.asList(user));
 		
 		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
 		b.createFile(filename);
+		b.createFile(streamFilename);
 		
 		submitTransaction(DEST_ADDR, b.build());
 		System.out.println("create user commit sent"); 
@@ -256,6 +263,7 @@ public class TwitterNode extends MCCNode {
 			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
 			b.touchFile(filename);
 			b.deleteFile(filename);
+			b.createFile(filename);
 			
 			submitTransaction(DEST_ADDR, b.build());
 			System.out.println("read tweets commit sent");
