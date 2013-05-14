@@ -203,34 +203,52 @@ public abstract class MCCNode extends RPCNode {
     // check on the transaction's requested files
     for(NFSTransaction.NFSOperation op : transaction.ops) {
       String filename = op.filename;
-      Integer fileversion = fileVersions.get(filename);
-      Integer checkversion = checkVersions.get(filename);
+      if(op.opType.equals(NFSTransaction.NFSOpType.CREATEFILE)) {
+        // if a create file operation, make sure file doesn't already exist
+        // this file will not be in the filedataCheck list
+        if(fileVersions.containsKey(filename)) {
+          // INVALID: trying to create a pre-existing file
+          try {
+            String contents = nfsService.readFile(getVersionedFilename(filename));
+            updates.add(new MCCFileData(fileversion, filename, contents));
+          } catch(IOException e) {
+            e.printStackTrace();
+            LOG.severe("failure when trying to access file for version update");
+          }
+        } // VALID
+      } else if(checkVersions.containsKey(filename)) {
+        Integer fileversion = fileVersions.get(filename);
+        Integer checkversion = checkVersions.get(filename);
 
-      // if the requested file version was invalid
-      if(!fileVersions.containsKey(filename) || fileversion == null) {
-        // if it was deleted on the server
-        updates.add(new MCCFileData(-1, filename, null));
-      } else if(fileversion != checkversion) {
-        // if it has a different version
-        try {
-          String contents = nfsService.readFile(getVersionedFilename(filename));
-          updates.add(new MCCFileData(fileversion, filename, contents));
-        } catch(IOException e) {
-          e.printStackTrace();
-          LOG.severe("failure when trying to access file for version update");
-        }
+        // if the requested file version was invalid
+        if(!fileVersions.containsKey(filename) || fileversion == null) {
+          // INVALID: it was deleted on the server
+          updates.add(new MCCFileData(-1, filename, null));
+        } else if(fileversion != checkversion) {
+          // INVALID: if it has a different version
+          try {
+            String contents = nfsService.readFile(getVersionedFilename(filename));
+            updates.add(new MCCFileData(fileversion, filename, contents));
+          } catch(IOException e) {
+            e.printStackTrace();
+            LOG.severe("failure when trying to access file for version update");
+          }
+        } // VALID
+      } else {
+        // We've got a problem
+        throw new IllegalStateException("filename not found in filedataCheck list");
       }
     }
 
     Set<String> currentFiles = new HashSet<String>(fileVersions.keySet());
-    // check for any new files on the server
+    // check for any new files on the server not in the filedataCheck list
     currentFiles.removeAll(checkVersions.keySet());
     for(String newFile : currentFiles) {
+      // INVALID: there are files on the server
       Integer fileversion = fileVersions.get(newFile);
 
       try {
         String contents = nfsService.readFile(getVersionedFilename(newFile));
-
         updates.add(new MCCFileData(fileversion, newFile, contents));
       } catch(IOException e) {
         e.printStackTrace();
@@ -238,7 +256,7 @@ public abstract class MCCNode extends RPCNode {
       }
     }
 
-    return null;
+    return updates;
   }
 
   /**
