@@ -10,4 +10,8 @@ public class MCCFileData implements Serializable {
     this.filename = filename;
     this.contents = contents;
   }
+
+  public String toString() {
+    return String.format("MCCFileData{%s, %d}", filename, versionNum);
+  }
 }

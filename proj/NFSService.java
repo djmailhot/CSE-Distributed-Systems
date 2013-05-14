@@ -66,6 +66,24 @@ public class NFSService {
   }
 
   /**
+   * Read the specified file.
+   *
+   * If the file does not exist, returns null;
+   */
+  public String readFile(String filename) throws IOException {
+    List<String> lines = read(filename);
+    if(lines == null) {
+      return null;
+    }
+    StringBuilder builder = new StringBuilder();
+    for(String line : lines) {
+      builder.append(String.format("%s\n", line));
+    }
+    builder.deleteCharAt(builder.length() - 1); // get rid of trailing newline
+    return builder.toString();
+  }
+
+  /**
    * Write to the specified file.
    *
    * If the file does not exist, creates a new one and writes;
@@ -92,6 +110,25 @@ public class NFSService {
    */
   public boolean rename(String oldname, String newname) throws IOException {
     return commitTempFile(oldname, newname);
+  }
+
+  /**
+   * Copy the specified file to a new name.
+   *
+   * If the oldfile does not exist, nothing happens;
+   * If the newfile already exists, overwrites the contents;
+   *
+   * @return true if file was renamed, false if not
+   */
+  public boolean copy(String oldname, String newname) throws IOException {
+    File oldFile = Utility.getFileHandle(node, oldname);
+    if(!oldFile.exists()) {
+      return false;
+    }
+    File newFile = Utility.getFileHandle(node, newname);
+    Files.copy(oldFile.toPath(), newFile.toPath(), 
+               StandardCopyOption.REPLACE_EXISTING);
+    return true;
   }
 
   /**
@@ -128,24 +165,6 @@ public class NFSService {
     writer.newLine();
     writer.close();
     return commitTempFile(tempname, filename);
-  }
-
-  /**
-   * Check that the version of the specified file is not newer than the
-   * specified date.
-   *
-   * If the file does not exist, returns true.
-   * 
-   * @return true if the specified file's last modified date is no more recent
-   *         than the specified date.
-   */
-  public boolean check(String filename, Date date) throws IOException {
-    //System.out.println(String.format("check %s", filename));
-    if(!exists(filename)) {
-      return true;
-    }
-    File file = Utility.getFileHandle(node, filename);
-    return Long.compare(file.lastModified(), date.getTime()) >= 0;
   }
 
   /**
