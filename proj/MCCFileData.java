@@ -1,4 +1,6 @@
-public class MCCFileData {
+import java.io.Serializable;
+
+public class MCCFileData implements Serializable {
   public final int versionNum;
   public final String filename;
   public final String contents;
