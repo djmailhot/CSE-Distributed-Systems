@@ -67,7 +67,7 @@ public class ReliableInOrderMsgLayer {
 			System.out.println("rp: " + new String(rp.getPayload()));
 			RPCNode.MessageType mt = RPCNode.extractMessageType(rp.getPayload());
 
-			//if we have a matching UUID, then we crashed between deleting the recv log, and making the send log for the response.
+			//if we have a matching ID, then we crashed between deleting the recv log, and making the send log for the response.
 			//We have a send log, but the recv log hasn't been deleted.  So we do that now, and don't add this to the responseMap.
 			boolean alreadyResponded = false;
 			for(MsgLogEntry mle2: sendLogsAll){
@@ -309,11 +309,11 @@ public class ReliableInOrderMsgLayer {
 		return sb.toString();
 	}
 
-	public void responseFinalized(UUID uuid, int recv) {
-		SeqLogEntries.AddrSeqPair asp = this.responseRecvdMap.get(uuid);
+	public void responseFinalized(int id) {
+		SeqLogEntries.AddrSeqPair asp = this.responseRecvdMap.get(id);
 		if(asp != null){
 			this.msl.deleteLog(asp.addr(), asp.seq(), MsgLogger.RECV);
-			this.responseRecvdMap.remove(uuid);
+			this.responseRecvdMap.remove(id);
 		}
 		
 	}
