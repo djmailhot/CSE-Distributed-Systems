@@ -68,6 +68,7 @@ public class TwitterNode extends MCCNode {
 	@Override
 	public void onCommand(String command) {
 		int transactionId = edu.washington.cs.cse490h.lib.Utility.getRNG().nextInt();
+    transactionId = Math.abs(transactionId);
 		if(command != null && knownCommand(command.toLowerCase(), transactionId)){
 			return;
 		}

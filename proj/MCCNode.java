@@ -28,29 +28,33 @@ public abstract class MCCNode extends RPCNode {
    */
   public MCCNode() {
     this.nfsService = new NFSService(this);
+    this.committedTids = new HashSet<Integer>();
+    this.fileVersions = new HashMap<String, Integer>();
   }
 
   public void start() {
-    this.committedTids = new HashSet<Integer>();
-    this.fileVersions = new HashMap<String, Integer>();
+    this.committedTids.clear();
+    this.fileVersions.clear();
 
     // read the metafile and populate the internal data structures
     try {
-      List<String> lines = nfsService.read(METAFILE);
-      for(String line : lines) {
-        line = line.trim();
-        // if the empty string
-        if(line.length() == 0) {
-          continue;
-        }
+      if(nfsService.exists(METAFILE)) {
+        List<String> lines = nfsService.read(METAFILE);
+        for(String line : lines) {
+          line = line.trim();
+          // if the empty string
+          if(line.length() == 0) {
+            continue;
+          }
 
-        String[] tokens = line.split(METAFILE_DELIMITER);
-        if(tokens.length == 1) {
-          committedTids.add(Integer.parseInt(tokens[0]));
-        } else if(tokens.length == 2) {
-          fileVersions.put(tokens[1], Integer.parseInt(tokens[0]));
-        } else {
-          throw new IllegalStateException("Metafile format corrupted");
+          String[] tokens = line.split(METAFILE_DELIMITER);
+          if(tokens.length == 1) {
+            committedTids.add(Integer.parseInt(tokens[0]));
+          } else if(tokens.length == 2) {
+            fileVersions.put(tokens[1], Integer.parseInt(tokens[0]));
+          } else {
+            throw new IllegalStateException("Metafile format corrupted");
+          }
         }
       }
     } catch(IOException e) {
@@ -179,8 +183,7 @@ public abstract class MCCNode extends RPCNode {
    */
   private String getVersionedFilename(String filename) {
     if(!fileVersions.containsKey(filename)) {
-      throw new IllegalArgumentException("filename not in fileVersions map");
-      //return null;
+      return String.format("%d%s%s", -1, VERSION_DELIMITER, filename);
     }
     int version = fileVersions.get(filename);
     return String.format("%d%s%s", version, VERSION_DELIMITER, filename);
