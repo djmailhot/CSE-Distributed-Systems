@@ -19,7 +19,7 @@ public abstract class MCCNode extends RPCNode {
   private static final String METAFILE_DELIMITER = "\t";
   private static final String VERSION_DELIMITER = "@";
 
-  private final NFSService nfsService;
+  protected final NFSService nfsService;
 
   private Set<Integer> committedTids;
   private Map<String, Integer> fileVersions;
@@ -105,27 +105,54 @@ public abstract class MCCNode extends RPCNode {
   /**
    * Commits the specified transaction to this node's filesystem.
    *
+   * Also increments version numbers accordingly.
+   *
    * @return true if successful
    */
-  private boolean commitTransaction(List<MCCFileData> filedata,
-                                    NFSTransaction transaction) {
+  private boolean commitTransaction(NFSTransaction transaction) {
+    // break early if transaction has already been committed
+    if(committedTids.contains(transaction.tid)) {
+      return true;
+    }
     boolean success = true;
     try {
-      // TODO:  ASSUME THAT FILEVERSIONS HAVE BEEN INCREMENTED
+      // TODO:  WHAT HAPPENS WITH VERSION NUMBERS ON A FILE CREATE?
+      // TODO:  WHAT HAPPENS WITH VERSION NUMBERS ON A FILE DELETE?
       for(NFSTransaction.NFSOperation op : transaction.ops) {
-        String filename = getVersionedFilename(op.filename);
+        String filename = op.filename;
+        String oldVersion = getVersionedFilename(filename);
+        String newVersion;
+        int version;
         switch (op.opType) {
           case CREATEFILE:
-            success = success && nfsService.create(filename);
+            fileVersions.put(filename, 0); // DON'T KNOW IF THIS WILL ACTUALLY WORK
+            newVersion = getVersionedFilename(filename);
+            // reserve the 0-version file for blank newly created files
+            success = success && nfsService.create(newVersion);
             break;
           case APPENDLINE:
-            success = success && nfsService.append(filename, op.dataline);
+            // make sure we don't overwrite the blank 0-version file
+            version = Math.max(fileVersions.get(filename), 0) + 1;
+            fileVersions.put(filename, version);
+            newVersion = getVersionedFilename(filename);
+            success = success && nfsService.copy(oldVersion, newVersion);
+
+            success = success && nfsService.append(newVersion, op.dataline);
             break;
           case DELETEFILE:
-            success = success && nfsService.delete(filename);
+            fileVersions.put(filename, -1);  // NEVER CREATE A VERSION -1 FILE
+            // success = success && nfsService.delete(oldVersion);
+            // WE DON'T ACTUALLY WANT TO DELETE IT
+            // OTHERWISE WE ARE UNRECOVERABLE ON A CRASH RIGHT >HERE<
             break;
           case DELETELINE:
-            success = success && nfsService.deleteLine(filename, op.dataline);
+            // make sure we don't overwrite the blank 0-version file
+            version = Math.max(fileVersions.get(filename), 0) + 1;
+            fileVersions.put(filename, version);
+            newVersion = getVersionedFilename(filename);
+            success = success && nfsService.copy(oldVersion, newVersion);
+
+            success = success && nfsService.deleteLine(newVersion, op.dataline);
             break;
           default:
             LOG.warning("Received invalid operation type");
@@ -134,14 +161,17 @@ public abstract class MCCNode extends RPCNode {
 
       writeMetafile();  // atomically commit this transaction
     } catch(IOException e) {
-      LOG.severe("File system failure");
+      LOG.severe("File system failure on transaction commit");
       e.printStackTrace();
-      return false;
+      throw new RuntimeException("File system failure on transaction commit");
     } finally {
       return success;
     }
   }
 
+  /**
+   * @return a filename that has been versionafied.
+   */
   private String getVersionedFilename(String filename) {
     if(!fileVersions.containsKey(filename)) {
       throw new IllegalArgumentException("filename not in fileVersions map");
@@ -153,14 +183,96 @@ public abstract class MCCNode extends RPCNode {
 
 
   /**
-   * @return null if the specified filedata and transaction operations 
-   * were constructed from an up-to-version filesystem.  Else, returns
-   * a list of MCCFileData objects with up-to-version files and their contents.
+   * Computes any what versions are valid and invalid for the specified filedata
+   * check and transaction.
+   *
+   * @return a list of MCCFileData objects of file contents for any checked 
+   * filedata that had an invalid version, or null if the checked filedata has 
+   * all valid versions.
    */
-  private List<MCCFileData> checkVersions(List<MCCFileData> filedata,
+  private List<MCCFileData> checkVersions(List<MCCFileData> filedataCheck,
                                           NFSTransaction transaction) {
+    List<MCCFileData> updates = new ArrayList<MCCFileData>();
+
+    // map of checked file versions
+    Map<String, Integer> checkVersions = new HashMap<String, Integer>();
+    for(MCCFileData data : filedataCheck) {
+      checkVersions.put(data.filename, data.versionNum);
+    }
+
+    // check on the transaction's requested files
+    for(NFSTransaction.NFSOperation op : transaction.ops) {
+      String filename = op.filename;
+      Integer fileversion = fileVersions.get(filename);
+      Integer checkversion = checkVersions.get(filename);
+
+      // if the requested file version was invalid
+      if(!fileVersions.containsKey(filename) || fileversion == null) {
+        // if it was deleted on the server
+        updates.add(new MCCFileData(-1, filename, null));
+      } else if(fileversion != checkversion) {
+        // if it has a different version
+        try {
+          String contents = nfsService.readFile(getVersionedFilename(filename));
+          updates.add(new MCCFileData(fileversion, filename, contents));
+        } catch(IOException e) {
+          e.printStackTrace();
+          LOG.severe("failure when trying to access file for version update");
+        }
+      }
+    }
+
+    Set<String> currentFiles = new HashSet<String>(fileVersions.keySet());
+    // check for any new files on the server
+    currentFiles.removeAll(checkVersions.keySet());
+    for(String newFile : currentFiles) {
+      Integer fileversion = fileVersions.get(newFile);
+
+      try {
+        String contents = nfsService.readFile(getVersionedFilename(newFile));
+
+        updates.add(new MCCFileData(fileversion, newFile, contents));
+      } catch(IOException e) {
+        e.printStackTrace();
+        LOG.severe("failure when trying to access file for version update");
+      }
+    }
 
     return null;
+  }
+
+  /**
+   * Updates the local file system to match the specified file updates.
+   *
+   * @requires the specified list of MCCFileData entries to contain valid
+   * file contents.
+   */
+  private void updateVersions(List<MCCFileData> filedataUpdate) {
+    try {
+      for(MCCFileData fileData : filedataUpdate) {
+        if(fileData.versionNum == -1) {
+          // DELETED
+          fileVersions.remove(fileData.filename);
+        } else if(fileData.contents != null) {
+          // UPDATED
+          fileVersions.put(fileData.filename, fileData.versionNum);
+
+          // file version should be good now
+          String updatedFilename = getVersionedFilename(fileData.filename);
+          nfsService.write(updatedFilename, fileData.contents);
+        } else {
+          // BADNESS
+          throw new IllegalStateException("filedata updates contained null file contents");
+        }
+      }
+
+      // commit the filedata update
+      writeMetafile();
+    } catch(IOException e) {
+      LOG.severe("File system failure on cache update");
+      e.printStackTrace();
+      throw new RuntimeException("File system failure on cache update");
+    }
   }
 
   /**
@@ -171,13 +283,6 @@ public abstract class MCCNode extends RPCNode {
    * This is considered an atomic finalizing step to committing a transaction.
    */
   private void writeMetafile() throws IOException {
-    /*
-      int version = 1;
-      if(fileVersions.containsKey(op.filename)) {
-        version = fileVersions.get(op.filename);
-      }
-      fileVersions.put(op.filename, version);
-    */
     StringBuilder data = new StringBuilder();
     for(Integer tid : committedTids) {
       data.append(String.format("%d\n", tid));
@@ -186,6 +291,7 @@ public abstract class MCCNode extends RPCNode {
       int version = fileVersions.get(filename);
       data.append(String.format("%d%s%s\n", version, METAFILE_DELIMITER, filename));
     }
+    data.deleteCharAt(data.length() - 1);  // get rid of trailing newline
     nfsService.write(METAFILE, data.toString());
   }
 
@@ -218,8 +324,17 @@ public abstract class MCCNode extends RPCNode {
    * Will recive a response through the onMCCResponse callback method.
    */
   public void submitTransaction(int destAddr, NFSTransaction transaction) {
-    //TODO: compile a list of MCCFileData objects, build an RPCBundle, RPC
-    // submit
+    List<MCCFileData> filedataCheck = getCurrentVersions();
+    RPCBundle bundle = RPCBundle.newRequestBundle(filedataCheck, transaction);
+    RPCSendRequest(destAddr, bundle);
+  }
+
+  private List<MCCFileData> getCurrentVersions() {
+    List<MCCFileData> filedata = new ArrayList<MCCFileData>();
+    for(String filename : fileVersions.keySet()) {
+      filedata.add(new MCCFileData(fileVersions.get(filename), filename, null));
+    }
+    return filedata;
   }
 
 	//----------------------------------------------------------------------------
@@ -230,8 +345,16 @@ public abstract class MCCNode extends RPCNode {
     onMCCRequest(from, bundle.filelist, bundle.transaction);
   }
 
-
   public void onRPCResponse(Integer from, RPCBundle bundle) {
+    boolean success = bundle.success;
+    if(success) {
+      // if successful, apply updates locally
+      success = success && commitTransaction(bundle.transaction);
+    } else {
+      // update the cache to the most recent versions
+      updateVersions(bundle.filelist);
+    }
+    onMCCResponse(from, bundle.tid, success);
   }
 
 	/**
@@ -241,18 +364,26 @@ public abstract class MCCNode extends RPCNode {
 	 * 
 	 * @param from
 	 *            The address from which the message was received
-   * @param filelist
+   * @param filedataCheck
    *            A list of files and version numbers.
    *            The file contents are not used.
    * @param transaction
    *            The filesystem transaction to send.
 	 */
-  public void onMCCRequest(Integer from, List<MCCFileData> filelist, 
+  public void onMCCRequest(Integer from, List<MCCFileData> filedataCheck, 
                            NFSTransaction transaction) {
-    //TODO: make this actually work
-    RPCBundle response = null;
-    commitTransaction(filelist, transaction);
-    RPCSendResponse(from, response);
+    RPCBundle responseBundle = null;
+    // verify that the filedataCheck is up-to-version
+    List<MCCFileData> filedataUpdate = checkVersions(filedataCheck, transaction);
+    if(filedataUpdate == null) {
+      // UP-TO-VERSION!  COMMIT THAT SUCKA
+      commitTransaction(transaction);
+      responseBundle = RPCBundle.newResponseBundle(filedataUpdate, transaction, true);
+    } else {
+      // NO GOOD!  TOO LATE!  get them the new version data
+      responseBundle = RPCBundle.newResponseBundle(filedataUpdate, transaction, false);
+    }
+    RPCSendResponse(from, responseBundle);
   }
 
 	/**
@@ -264,7 +395,7 @@ public abstract class MCCNode extends RPCNode {
 	 *            The address from which the message was received
    * @param tid
    *            The transaction id this response is for
-	 * @param committed
+	 * @param success
 	 *            True if the specified transaction was successful
    *
 	 */

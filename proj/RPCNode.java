@@ -230,7 +230,7 @@ public abstract class RPCNode extends RIONode {
      * Specifically constructs a request bundle.
      *
      * @param filelist
-     *            A list of files and version numbers with contents.
+     *            A list of files and version numbers.
      * @param transaction
      *            The filesystem transaction to include.
      */
@@ -242,15 +242,17 @@ public abstract class RPCNode extends RIONode {
     /**
      * Specifically constructs a response bundle.
      *
-     * @param requestBundle
-     *            The request RPCBundle that corresponds to this response 
+     * @param filelist
+     *            A list of files and version numbers with contents.
+     * @param transaction
+     *            The filesystem transaction to include.
      * @param success
      *            Whether the bundle represents a successful request
      */
-    public static RPCBundle newResponseBundle(RPCBundle requestBundle,
+    public static RPCBundle newResponseBundle(List<MCCFileData> filelist,
+                                              NFSTransaction transaction,
                                               boolean success) {
-      return new RPCBundle(MessageType.RESPONSE, true, 
-                           requestBundle.filelist, requestBundle.transaction);
+      return new RPCBundle(MessageType.RESPONSE, success, filelist, transaction);
     }
   }
 }
