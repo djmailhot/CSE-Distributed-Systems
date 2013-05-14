@@ -85,6 +85,7 @@ public class TwitterNode extends MCCNode {
 	}
 	
 	private boolean doCommand(String command, int transactionId) {
+		RIOLayer.responseFinalized(transactionId); // If we're retrying, we're done with the old response.
 		if (command == null) { return false; }
 		
 		String[] parsedCommand = command.split(" ");
@@ -487,6 +488,7 @@ public class TwitterNode extends MCCNode {
 	}	
 
 	private void pollCommand(int currentTid) {
+		RIOLayer.responseFinalized(currentTid); // We're done with the old response.
 		ccl.deleteLog(currentTid);
 		if (commandQueue.size() > 0) {
 			Pair<String, Integer> commandAndTid = commandQueue.poll();
