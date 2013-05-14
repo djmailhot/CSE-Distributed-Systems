@@ -75,6 +75,10 @@ public class NFSService {
     if(lines == null) {
       return null;
     }
+    else if (lines.size() == 0){
+    	return "";
+    }
+    
     StringBuilder builder = new StringBuilder();
     for(String line : lines) {
       builder.append(String.format("%s\n", line));
