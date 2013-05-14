@@ -362,6 +362,10 @@ public class TwitterNode extends MCCNode {
 		TwitterOp op = p.a;
 		List<String> extraInfo = p.b;
 		
+		if (op == TwitterOp.READTWEETS) {
+			System.out.println("RESPONSE: " + tid + ", success: " + success + ", extraInfo: " + extraInfo);
+		}
+		
 		if (success) {
 			switch(op){		
 			case CREATE: 
@@ -385,7 +389,7 @@ public class TwitterNode extends MCCNode {
 				break;
 			case READTWEETS: {
 				// We successfully read and deleted the stream file, so now display the tweets to the user.
-				if (extraInfo != null) {
+				if (extraInfo != null && extraInfo.size() > 0) {
 					for (String tweet : extraInfo) {
 						System.out.println(tweet);
 					}
