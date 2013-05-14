@@ -171,6 +171,8 @@ public abstract class RPCNode extends RIONode {
    * Some sweet ass class.
    */
   public static class RPCBundle implements Serializable {
+    public static final long serialVersionUID = 0L;
+
     public final MessageType type;  // request or response
     public final int tid;  // transaction id
     public final boolean success;

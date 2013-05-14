@@ -29,6 +29,7 @@ import java.util.*;
  * append data filesystem operation as well as a file read dependency.
  */
 public class NFSTransaction implements Serializable {
+    public static final long serialVersionUID = 0L;
 
     /** The unique id for this transaction. */
     public final int tid; 
@@ -58,7 +59,9 @@ public class NFSTransaction implements Serializable {
     /**
      * A NFSOperation object represents a single filesystem operation.
      */
-    public static class NFSOperation {
+    public static class NFSOperation implements Serializable {
+        public static final long serialVersionUID = 0L;
+
         /** The filesystem operation type. */
         public final NFSOpType opType;
         /** The name of the file to target. */

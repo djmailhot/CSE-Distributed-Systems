@@ -323,7 +323,6 @@ public abstract class MCCNode extends RPCNode {
       int version = fileVersions.get(filename);
       data.append(String.format("%d%s%s\n", version, METAFILE_DELIMITER, filename));
     }
-    data.deleteCharAt(data.length() - 1);  // get rid of trailing newline
     nfsService.write(METAFILE, data.toString());
   }
 
