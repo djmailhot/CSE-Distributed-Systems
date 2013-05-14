@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
-import java.util.logging.Logger;
 
 /**
  * The MCCNode module gives Multiversion Concurrency Control over the 
@@ -14,7 +13,7 @@ import java.util.logging.Logger;
  * It uses discrete Transactions to jump from one version to the next.
  */
 public abstract class MCCNode extends RPCNode {
-  private static final Logger LOG = Logger.getLogger(MCCNode.class.getName());
+  private static final String TAG = "RPCNode";
   private static final String METAFILE = "METAFILE";
   private static final String METAFILE_DELIMITER = "\t";
   private static final String VERSION_DELIMITER = "@";
@@ -63,7 +62,7 @@ public abstract class MCCNode extends RPCNode {
       throw new IllegalStateException("Metafile format corrupted");
     }
 
-    LOG.info(String.format("read in METAFILE with contents %s", fileVersions));
+    Log.i(TAG, String.format("read in METAFILE with contents %s", fileVersions));
 
     super.start();
   }
@@ -112,10 +111,10 @@ public abstract class MCCNode extends RPCNode {
    * @return true if successful
    */
   private boolean commitTransaction(NFSTransaction transaction) {
-    LOG.info(String.format("Commit attempt for %s", transaction));
+    Log.i(TAG, String.format("Commit attempt for %s", transaction));
     // break early if transaction has already been committed
     if(committedTids.contains(transaction.tid)) {
-      LOG.info(String.format("Transaction %d already committed", transaction.tid));
+      Log.i(TAG, String.format("Transaction %d already committed", transaction.tid));
       return true;
     }
     boolean success = true;
@@ -159,17 +158,17 @@ public abstract class MCCNode extends RPCNode {
             success = success && nfsService.deleteLine(newVersionedFile, op.dataline);
             break;
           default:
-            LOG.warning("Received invalid operation type");
+            Log.w(TAG, "Received invalid operation type");
         }
       }
 
       writeMetafile();  // atomically commit this transaction
     } catch(IOException e) {
-      LOG.severe("File system failure on transaction commit");
+      Log.e(TAG, "File system failure on transaction commit");
       e.printStackTrace();
       throw new RuntimeException("File system failure on transaction commit");
     } finally {
-      LOG.info(String.format("Commit %d actually committed? %s",
+      Log.i(TAG, String.format("Commit %d actually committed? %s",
                               transaction.tid, success));
       return success;
     }
@@ -198,9 +197,9 @@ public abstract class MCCNode extends RPCNode {
    */
   private List<MCCFileData> checkVersions(List<MCCFileData> filedataCheck,
                                           NFSTransaction transaction) {
-    LOG.info(String.format("Check versions for transaction %d", transaction.tid));
-    LOG.info(String.format("Versions submitted? %s", filedataCheck));
-    LOG.info(String.format("Current versions? %s", fileVersions));
+    Log.i(TAG, String.format("Check versions for transaction %d", transaction.tid));
+    Log.i(TAG, String.format("Versions submitted? %s", filedataCheck));
+    Log.i(TAG, String.format("Current versions? %s", fileVersions));
     List<MCCFileData> updates = new ArrayList<MCCFileData>();
 
     // map of checked file versions
@@ -223,7 +222,7 @@ public abstract class MCCNode extends RPCNode {
             updates.add(new MCCFileData(fileversion, filename, contents));
           } catch(IOException e) {
             e.printStackTrace();
-            LOG.severe("failure when trying to access file for version update");
+            Log.e(TAG, "failure when trying to access file for version update");
           }
         } // VALID
       } else if(checkVersions.containsKey(filename)) {
@@ -241,7 +240,7 @@ public abstract class MCCNode extends RPCNode {
             updates.add(new MCCFileData(fileversion, filename, contents));
           } catch(IOException e) {
             e.printStackTrace();
-            LOG.severe("failure when trying to access file for version update");
+            Log.e(TAG, "failure when trying to access file for version update");
           }
         } // VALID
       } else {
@@ -262,7 +261,7 @@ public abstract class MCCNode extends RPCNode {
         updates.add(new MCCFileData(fileversion, newFile, contents));
       } catch(IOException e) {
         e.printStackTrace();
-        LOG.severe("failure when trying to access file for version update");
+        Log.e(TAG, "failure when trying to access file for version update");
       }
     }
 
@@ -276,7 +275,7 @@ public abstract class MCCNode extends RPCNode {
    * file contents.
    */
   private void updateVersions(List<MCCFileData> filedataUpdate) {
-    LOG.info(String.format("Updating versions to %s", filedataUpdate));
+    Log.i(TAG, String.format("Updating versions to %s", filedataUpdate));
     try {
       for(MCCFileData fileData : filedataUpdate) {
         if(fileData.versionNum == -1) {
@@ -298,7 +297,7 @@ public abstract class MCCNode extends RPCNode {
       // commit the filedata update
       writeMetafile();
     } catch(IOException e) {
-      LOG.severe("File system failure on cache update");
+      Log.e(TAG, "File system failure on cache update");
       e.printStackTrace();
       throw new RuntimeException("File system failure on cache update");
     }
@@ -312,7 +311,7 @@ public abstract class MCCNode extends RPCNode {
    * This is considered an atomic finalizing step to committing a transaction.
    */
   private void writeMetafile() throws IOException {
-    LOG.info("METAFILE commit attempt");
+    Log.i(TAG, "METAFILE commit attempt");
     StringBuilder data = new StringBuilder();
     for(Integer tid : committedTids) {
       data.append(String.format("%d\n", tid));
@@ -354,7 +353,7 @@ public abstract class MCCNode extends RPCNode {
    * Will recive a response through the onMCCResponse callback method.
    */
   public void submitTransaction(int destAddr, NFSTransaction transaction) {
-    LOG.info(String.format("Commit submission to %d for transaction %s",
+    Log.i(TAG, String.format("Commit submission to %d for transaction %s",
                             destAddr, transaction));
     List<MCCFileData> filedataCheck = getCurrentVersions();
     RPCBundle bundle = RPCBundle.newRequestBundle(filedataCheck, transaction);
@@ -374,12 +373,12 @@ public abstract class MCCNode extends RPCNode {
 	//----------------------------------------------------------------------------
 
   public void onRPCRequest(Integer from, RPCBundle bundle) {
-    LOG.info(String.format("RPCRequest received from %d", from));
+    Log.i(TAG, String.format("RPCRequest received from %d", from));
     onMCCRequest(from, bundle.filelist, bundle.transaction);
   }
 
   public void onRPCResponse(Integer from, RPCBundle bundle) {
-    LOG.info(String.format("RPCResponse received from %d", from));
+    Log.i(TAG, String.format("RPCResponse received from %d", from));
     boolean success = bundle.success;
     if(success) {
       // if successful, apply updates locally
