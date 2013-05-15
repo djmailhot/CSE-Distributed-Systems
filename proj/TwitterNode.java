@@ -316,7 +316,7 @@ public class TwitterNode extends MCCNode {
 
 			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
 			b.touchFile(filename); // will this fail if the file does not exist??? I hope so!
-			b.appendLine(filename, followUserName);
+			b.appendLine(filename, username);
 			
 			mapUUIDs(transactionId, TwitterOp.FOLLOW, Arrays.asList(followUserName));
 			
