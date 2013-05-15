@@ -6,6 +6,8 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 
+import plume.Pair;
+
 /**
  * The MCCNode module gives Multiversion Concurrency Control over the 
  * Named File Storage of a particular node.
@@ -21,7 +23,7 @@ public abstract class MCCNode extends RPCNode {
   protected final NFSService nfsService;
 
   private Set<Integer> committedTids;
-  private Map<String, Integer> fileVersions;
+  private Map<String, Pair<Integer, Boolean>> fileVersions;
 
   /**
    * Create a new Multiversioned Name File Storage Node.
@@ -29,7 +31,7 @@ public abstract class MCCNode extends RPCNode {
   public MCCNode() {
     this.nfsService = new NFSService(this);
     this.committedTids = new HashSet<Integer>();
-    this.fileVersions = new HashMap<String, Integer>();
+    this.fileVersions = new HashMap<String, Pair<Integer, Boolean>>(); // filename, (version, deleted)
   }
 
   public void start() {
@@ -50,8 +52,8 @@ public abstract class MCCNode extends RPCNode {
           String[] tokens = line.split(METAFILE_DELIMITER);
           if(tokens.length == 1) {
             committedTids.add(Integer.parseInt(tokens[0]));
-          } else if(tokens.length == 2) {
-            fileVersions.put(tokens[1], Integer.parseInt(tokens[0]));
+          } else if(tokens.length == 3) {
+            fileVersions.put(tokens[1], new Pair<Integer, Boolean>(Integer.parseInt(tokens[0]), Boolean.parseBoolean(tokens[2])));
           } else {
             throw new IllegalStateException("Metafile format corrupted");
           }
@@ -195,7 +197,7 @@ public abstract class MCCNode extends RPCNode {
     if(!fileVersions.containsKey(filename)) {
       return String.format("%d%s%s", -1, VERSION_DELIMITER, filename);
     }
-    int version = fileVersions.get(filename);
+    int version = fileVersions.get(filename).a; 
     return String.format("%d%s%s", version, VERSION_DELIMITER, filename);
   }
 
@@ -301,7 +303,7 @@ public abstract class MCCNode extends RPCNode {
           fileVersions.remove(fileData.filename);
         } else if(fileData.contents != null) {
           // UPDATED
-          fileVersions.put(fileData.filename, fileData.versionNum);
+          fileVersions.put(fileData.filename, new Pair(fileData.versionNum, fileData.deleted));
 
           // file version should be good now
           String updatedFilename = getVersionedFilename(fileData.filename);
@@ -335,8 +337,10 @@ public abstract class MCCNode extends RPCNode {
       data.append(String.format("%d\n", tid));
     }
     for(String filename : fileVersions.keySet()) {
-      int version = fileVersions.get(filename);
-      data.append(String.format("%d%s%s\n", version, METAFILE_DELIMITER, filename));
+      Pair<Integer, Boolean> versionAndDeleted = fileVersions.get(filename);
+      int version = versionAndDeleted.a;
+      boolean deleted = versionAndDeleted.b;
+      data.append(String.format("%d%s%s%s%s\n", version, METAFILE_DELIMITER, filename, METAFILE_DELIMITER, deleted));
     }
     nfsService.write(METAFILE, data.toString());
   }
@@ -380,7 +384,8 @@ public abstract class MCCNode extends RPCNode {
   private List<MCCFileData> getCurrentVersions() {
     List<MCCFileData> filedata = new ArrayList<MCCFileData>();
     for(String filename : fileVersions.keySet()) {
-      filedata.add(new MCCFileData(fileVersions.get(filename), filename, null));
+    	Pair<Integer, Boolean> versionAndDeleted = fileVersions.get(filename);
+      filedata.add(new MCCFileData(versionAndDeleted.a, filename, null, versionAndDeleted.b));
     }
     return filedata;
   }
