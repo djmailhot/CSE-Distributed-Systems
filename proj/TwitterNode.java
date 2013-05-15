@@ -232,8 +232,15 @@ public class TwitterNode extends MCCNode {
 	private void login(String user, int transactionId) {//done
 		waitingForResponse = true;
 		String filename = user + "_followers.txt";
+		List<String> exists = null;
+		try {
+			 exists = read(filename);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 
-		mapUUIDs(transactionId, TwitterOp.LOGIN, Arrays.asList(user));
+		mapUUIDs(transactionId, TwitterOp.LOGIN, Arrays.asList(user, exists.toString()));
 		
 		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
 		b.touchFile(filename);

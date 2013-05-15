@@ -257,11 +257,20 @@ public abstract class MCCNode extends RPCNode {
     	boolean reject = false;
     	if(op.opType == NFSTransaction.NFSOpType.DELETELINE){
     		if(currentActual == null || currentCheck==null || currentActual.b || currentCheck.b || currentActual.a != currentCheck.a){
+    			System.out.println("11111111111111111111111111111111111");
     			reject = true;
     		}
     	}
     	else{
-    		if(!(currentActual==null && currentCheck==null) || (currentCheck != null && currentCheck.b && currentActual == null) || (currentActual != null && currentActual.b && currentCheck == null) || (currentActual!=null && currentCheck!=null && currentActual.a == currentCheck.a && currentActual.b == currentActual.b)){
+    		// TODO: MATT. I am confused about what this is supposed to look for?
+    		// It currently sets reject to true when actual and current are <0, false>, which is clearly up to date.
+    		if(!(currentActual==null && currentCheck==null) || 
+    				(currentCheck != null && currentCheck.b && currentActual == null) || 
+    				(currentActual != null && currentActual.b && currentCheck == null) || 
+    				(currentActual!=null && currentCheck!=null && currentActual.a == currentCheck.a && currentActual.b == currentActual.b)){
+    			System.out.println("222222222222222222222222222222222222222222222");
+    			System.out.println("CurrentActual: " + currentActual);
+    			System.out.println("currentCheck: " + currentCheck);
     			reject = true;
     		}
     	}
@@ -270,10 +279,12 @@ public abstract class MCCNode extends RPCNode {
     	if(reject){
     		try {
     			if(currentActual==null || currentActual.b){
+    				System.out.println("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
     				updates.add(new MCCFileData(-1, op.filename, "", true));
     			}
     			else{
 	                String contents = nfsService.readFile(getVersionedFilename(op.filename));
+	                System.out.println("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
 	                updates.add(new MCCFileData(currentActual.a, op.filename, contents, false));
     			}
               } catch(IOException e) {
@@ -333,6 +344,7 @@ public abstract class MCCNode extends RPCNode {
       if(!actual.b){
 	      try {
 	        String contents = nfsService.readFile(getVersionedFilename(newFile));
+	        System.out.println("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC");
 	        updates.add(new MCCFileData(actual.a, newFile, contents, actual.b));
 	      } catch(IOException e) {
 	        e.printStackTrace();
