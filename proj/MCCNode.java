@@ -169,7 +169,7 @@ public abstract class MCCNode extends RPCNode {
           case DELETEFILE:
           	versionAndDeleted = fileVersions.get(filename);
           	if(versionAndDeleted != null) { // if it does not exist, do nothing
-          		fileVersions.put(filename, new Pair(versionAndDeleted.a, true));  // Set deleted flag
+          		fileVersions.put(filename, new Pair(versionAndDeleted.a + 1, true));  // Set deleted flag
           	}
             // success = success && nfsService.delete(oldVersionedFile);
             // WE DON'T ACTUALLY WANT TO DELETE IT
