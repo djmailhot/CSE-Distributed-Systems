@@ -215,14 +215,48 @@ public abstract class MCCNode extends RPCNode {
     Log.i(TAG, String.format("Check versions for transaction %d", transaction.tid));
     Log.i(TAG, String.format("Versions submitted? %s", filedataCheck));
     Log.i(TAG, String.format("Current versions? %s", fileVersions));
-    List<MCCFileData> updates = new ArrayList<MCCFileData>();
-
+    Set<MCCFileData> updates = new HashSet<MCCFileData>();
+    
     // map of checked file versions
     Map<String, Integer> checkVersions = new HashMap<String, Integer>();
     for(MCCFileData data : filedataCheck) {
       checkVersions.put(data.filename, data.versionNum);
     }
-
+    
+    /* Step 1: make sure that client's cache is up-to-date with current file system
+     * Step 2: simulate set of transactions to make sure they are consistent with reality
+     * 	(e.g., cannot delete a file and then read from it)
+     */
+    
+    
+    /*-----------------Step 1:-----------------*/
+    for (String filename : checkVersions.keySet()) {
+    	// TODO: compare to fileVersions
+    	//Note: client will send checked version -1 if it thinks the file is deleted
+    	//
+    	//Logic:
+    	//if checked version == -1 then:
+    	//	if file does not appear in fileVersions or if file does appear in fileVersions and is "deleted":
+    	//		if this is create, touch, or append line, then its fine
+    	//		else not fine
+    	//	else not fine
+    	//else if file does not appear in fileVersions then not fine
+    	//else if checked version == actual version and file not deleted then:
+    	//	if its not create then its fine
+    	//	else not fine
+    	//else if checked version ~= actual and actual marked "deleted" then:
+    	//	if this is create, touch, or append line, then its fine
+    	//	else not fine
+    	//else if checked version ~= actual and actual not marked "deleted" then not fine  
+    }
+    
+    
+    /*-----------------Step 2:-----------------*/
+    
+    
+    
+    
+    /*
     // check on the transaction's requested files
     for(NFSTransaction.NFSOperation op : transaction.ops) {
       String filename = op.filename;
@@ -268,7 +302,7 @@ public abstract class MCCNode extends RPCNode {
         throw new IllegalStateException("filename not found in filedataCheck list");
       }
     }
-
+*/
     Set<String> currentFiles = new HashSet<String>(fileVersions.keySet());
     // check for any new files on the server not in the filedataCheck list
     currentFiles.removeAll(checkVersions.keySet());
@@ -285,7 +319,7 @@ public abstract class MCCNode extends RPCNode {
       }
     }
 
-    return updates;
+    return new ArrayList<MCCFileData>(updates);
   }
 
   /**
