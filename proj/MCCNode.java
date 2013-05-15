@@ -232,104 +232,112 @@ public abstract class MCCNode extends RPCNode {
     Set<MCCFileData> updates = new HashSet<MCCFileData>();
     
     // map of checked file versions
-    Map<String, Integer> checkVersions = new HashMap<String, Integer>();
+    Map<String, Pair<Integer,Boolean>> checkVersions = new HashMap<String, Pair<Integer,Boolean>>();
     for(MCCFileData data : filedataCheck) {
-      checkVersions.put(data.filename, data.versionNum);
-    }
-    
-    /* Step 1: make sure that client's cache is up-to-date with current file system
-     * Step 2: simulate set of transactions to make sure they are consistent with reality
-     * 	(e.g., cannot delete a file and then read from it)
-     */
-    
-    
-    /*-----------------Step 1:-----------------*/
-    for (String filename : checkVersions.keySet()) {
-    	// TODO: compare to fileVersions
-    	//Note: client will send checked version -1 if it thinks the file is deleted
-    	//
-    	//Logic:
-    	//if checked version == -1 then:
-    	//	if file does not appear in fileVersions or if file does appear in fileVersions and is "deleted":
-    	//		if this is create, touch, or append line, then its fine
-    	//		else not fine
-    	//	else not fine
-    	//else if file does not appear in fileVersions then not fine
-    	//else if checked version == actual version and file not deleted then:
-    	//	if its not create then its fine
-    	//	else not fine
-    	//else if checked version ~= actual and actual marked "deleted" then:
-    	//	if this is create, touch, or append line, then its fine
-    	//	else not fine
-    	//else if checked version ~= actual and actual not marked "deleted" then not fine  
+      checkVersions.put(data.filename, new Pair<Integer,Boolean>(data.versionNum,(data.versionNum==-1)?true:false));
     }
     
     
-    /*-----------------Step 2:-----------------*/
-    
-    
-    
-    
-    /*
-    // check on the transaction's requested files
-    for(NFSTransaction.NFSOperation op : transaction.ops) {
-      String filename = op.filename;
-      if(op.opType.equals(NFSTransaction.NFSOpType.CREATEFILE)) {
-        // if a create file operation, make sure file doesn't already exist
-        // this file will not be in the filedataCheck list
-        if(fileVersions.containsKey(filename)) {
-          // INVALID: trying to create a pre-existing file
-          try {
-            String contents = nfsService.readFile(getVersionedFilename(filename));
-            Integer fileversion = fileVersions.get(filename);
-            updates.add(new MCCFileData(fileversion, filename, contents));
-          } catch(IOException e) {
-            e.printStackTrace();
-            Log.e(TAG, "failure when trying to access file for version update");
-          }
-        } // VALID
-      } else if(checkVersions.containsKey(filename)) {
-        Integer fileversion = fileVersions.get(filename);
-        Integer checkversion = checkVersions.get(filename);
+    /* Here we are doing two checks effectively.  First, we are making sure that the client's cache
+     * is synchronized with the server.  Second, we are checking to make sure that the transactions
+     * listed are internally consistent in the order they are listed.  For instance, even if a file
+     * currently exists on the server and the client is up-to-date, we cannot allow a delete 
+     * followed by delete line, since that logically does not make sense.
+     * 
+     * Effectively this loop simulates the commit process to make sure it conforms to logic, and
+     * checks the versions in the client's cache.
+     */    
+    Map<String,Pair<Integer,Boolean>> tempActual = new HashMap<String,Pair<Integer,Boolean>>(fileVersions);
+    Map<String,Pair<Integer,Boolean>> tempCheck = new HashMap<String,Pair<Integer,Boolean>>(checkVersions);
+    for(NFSTransaction.NFSOperation op : transaction.ops){
+    	Pair<Integer,Boolean> currentActual = tempActual.get(op.filename);
+    	Pair<Integer,Boolean> currentCheck = tempCheck.get(op.filename);
+    	
+    	//check that versions are up-to-date and we can proceed
+    	boolean reject = false;
+    	if(op.opType == NFSTransaction.NFSOpType.DELETELINE){
+    		if(currentActual == null || currentCheck==null || currentActual.b || currentCheck.b || currentActual.a != currentCheck.a){
+    			reject = true;
+    		}
+    	}
+    	else{
+    		if((currentActual==null && currentCheck==null) || (currentCheck != null && currentCheck.b && currentActual == null) || (currentActual != null && currentActual.b && currentCheck == null) || (currentActual!=null && currentCheck!=null && currentActual.a == currentCheck.a && currentActual.b == currentActual.b)){
+    			reject = true;
+    		}
+    	}
+    	
+    	//if the operation will fail, time to do an update
+    	if(reject){
+    		try {
+    			if(currentActual==null || currentActual.b){
+    				updates.add(new MCCFileData(-1, op.filename, "", true));
+    			}
+    			else{
+	                String contents = nfsService.readFile(getVersionedFilename(op.filename));
+	                updates.add(new MCCFileData(currentActual.a, op.filename, contents, false));
+    			}
+              } catch(IOException e) {
+                e.printStackTrace();
+                Log.e(TAG, "failure when trying to access file for version update");
+              }
+    	}
+    	//else simulate effect of the command
+    	else {
+    		//if not present
+    		if(currentActual == null){
+    			if(op.opType != NFSTransaction.NFSOpType.DELETEFILE && op.opType != NFSTransaction.NFSOpType.TOUCHFILE){
+    				tempActual.put(op.filename, new Pair<Integer,Boolean>(0,false));
+    				tempCheck.put(op.filename, new Pair<Integer,Boolean>(0,false));
+    			}    				
+    		}
+    		//if present and deleted
+    		else if (currentActual.b){
+    			if(op.opType == NFSTransaction.NFSOpType.DELETEFILE){
+    				tempActual.get(op.filename).b = true;
+    				tempCheck.get(op.filename).b = true;
+    			}
+    			else if(op.opType != NFSTransaction.NFSOpType.TOUCHFILE){
+	    			tempActual.get(op.filename).a += 1;
+	    			tempActual.get(op.filename).b = false;
+	    			
+	    			tempCheck.get(op.filename).a += 1;
+	    			tempCheck.get(op.filename).b = false;
+    			}
+    		}
+    		//is present and not deleted
+    		else{
 
-        // if the requested file version was invalid
-        if(!fileVersions.containsKey(filename) || fileversion == null) {
-          // INVALID: it was deleted on the server
-          updates.add(new MCCFileData(-1, filename, null));
-        } else if(fileversion != checkversion) {
-          // INVALID: if it has a different version
-          try {
-            String contents = nfsService.readFile(getVersionedFilename(filename));
-            updates.add(new MCCFileData(fileversion, filename, contents));
-          } catch(IOException e) {
-            e.printStackTrace();
-            Log.e(TAG, "failure when trying to access file for version update");
-          }
-        } // VALID
-      } else if (op.opType.equals(NFSTransaction.NFSOpType.APPENDLINE)){
-      	// Here, we are trying to append a line to a file that does not yet exist. 
-      	// This should be ok.
-      	System.out.println("append to a non-existant file !!!!!!!!!!!!!!!!!");
-      } else {
-        // We've got a problem
-      	System.out.println(op.opType);
-        throw new IllegalStateException("filename not found in filedataCheck list");
-      }
+    			if(op.opType == NFSTransaction.NFSOpType.DELETEFILE){
+    				tempActual.get(op.filename).b = true;
+    				tempCheck.get(op.filename).b = true;
+    			}
+    			else if(op.opType == NFSTransaction.NFSOpType.TOUCHFILE){
+    				//do nothing
+    			}
+    			else{
+    				tempActual.get(op.filename).a += 1;
+    				tempCheck.get(op.filename).a += 1;
+    			}
+    		}
+    	}
     }
-*/
-    Set<String> currentFiles = new HashSet<String>(fileVersions.keySet());
+ 
+    
     // check for any new files on the server not in the filedataCheck list
+    Set<String> currentFiles = new HashSet<String>(fileVersions.keySet());
     currentFiles.removeAll(checkVersions.keySet());
     for(String newFile : currentFiles) {
       // INVALID: there are files on the server
-      Integer fileversion = fileVersions.get(newFile);
+      Pair<Integer,Boolean> actual = fileVersions.get(newFile);
 
-      try {
-        String contents = nfsService.readFile(getVersionedFilename(newFile));
-        updates.add(new MCCFileData(fileversion, newFile, contents));
-      } catch(IOException e) {
-        e.printStackTrace();
-        Log.e(TAG, "failure when trying to access file for version update");
+      if(!actual.b){
+	      try {
+	        String contents = nfsService.readFile(getVersionedFilename(newFile));
+	        updates.add(new MCCFileData(actual.a, newFile, contents, actual.b));
+	      } catch(IOException e) {
+	        e.printStackTrace();
+	        Log.e(TAG, "failure when trying to access file for version update");
+	      }
       }
     }
 
