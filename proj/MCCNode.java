@@ -264,10 +264,10 @@ public abstract class MCCNode extends RPCNode {
     	else{
     		// TODO: MATT. I am confused about what this is supposed to look for?
     		// It currently sets reject to true when actual and current are <0, false>, which is clearly up to date.
-    		if(!(currentActual==null && currentCheck==null) || 
+    		if(!((currentActual==null && currentCheck==null) || 
     				(currentCheck != null && currentCheck.b && currentActual == null) || 
     				(currentActual != null && currentActual.b && currentCheck == null) || 
-    				(currentActual!=null && currentCheck!=null && currentActual.a == currentCheck.a && currentActual.b == currentActual.b)){
+    				(currentActual!=null && currentCheck!=null && currentActual.a == currentCheck.a && currentActual.b == currentActual.b))){
     			System.out.println("222222222222222222222222222222222222222222222");
     			System.out.println("CurrentActual: " + currentActual);
     			System.out.println("currentCheck: " + currentCheck);
