@@ -314,7 +314,7 @@ public abstract class MCCNode extends RPCNode {
       for(MCCFileData fileData : filedataUpdate) {
         if(fileData.versionNum == -1) {
           // DELETED
-          fileVersions.remove(fileData.filename);
+          fileVersions.put(fileData.filename, new Pair(fileData.versionNum, true));
         } else if(fileData.contents != null) {
           // UPDATED
           fileVersions.put(fileData.filename, new Pair(fileData.versionNum, fileData.deleted));
