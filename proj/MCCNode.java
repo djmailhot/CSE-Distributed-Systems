@@ -132,22 +132,33 @@ public abstract class MCCNode extends RPCNode {
         String oldVersionedFile = getVersionedFilename(filename);
         String newVersionedFile;
         int version;
+        Pair<Integer, Boolean> versionAndDeleted;
         switch (op.opType) {
           case CREATEFILE:
-            fileVersions.put(filename, 0); // DON'T KNOW IF THIS WILL ACTUALLY WORK
+          	versionAndDeleted = fileVersions.get(filename); // Check for previous version
+          	if(versionAndDeleted != null && versionAndDeleted.b) { // Existed before, is currently deleted.
+          		fileVersions.put(filename, new Pair(versionAndDeleted.a + 1, false));
+          	} else if (versionAndDeleted == null) { // Did not exist before
+          		fileVersions.put(filename, new Pair(0, false));
+          	} else { // Existed before, is not currently deleted
+          		// PANIC!!!!! Matt's checkVersion should make sure this never happens.
+          		System.out.println("PANICCCCCCCCC!!!!!!!!!!!!!!!");
+          		throw new RuntimeException("this is not ok");
+          	}
             newVersionedFile = getVersionedFilename(filename);
             // reserve the 0-version file for blank newly created files
             success = success && nfsService.create(newVersionedFile);
             break;
           case APPENDLINE:
-          	if (fileVersions.get(filename) == null) {
+          	versionAndDeleted = fileVersions.get(filename);
+          	if (versionAndDeleted == null) {
           		// file does not yet exists
           		version = 0;
           	} else {
               // make sure we don't overwrite the blank 0-version file
-          		version = Math.max(fileVersions.get(filename), 0) + 1;
+          		version = Math.max(versionAndDeleted.a, 0) + 1;
           	}
-            fileVersions.put(filename, version);
+            fileVersions.put(filename, new Pair(version, false)); // If we're appending, assume it will exist.
             newVersionedFile = getVersionedFilename(filename);
             if (version > 0) { // only do this for appends to existing files
             	success = success && nfsService.copy(oldVersionedFile, newVersionedFile);
@@ -156,15 +167,18 @@ public abstract class MCCNode extends RPCNode {
             success = success && nfsService.append(newVersionedFile, op.dataline);
             break;
           case DELETEFILE:
-            fileVersions.put(filename, -1);  // NEVER CREATE A VERSION -1 FILE
+          	versionAndDeleted = fileVersions.get(filename);
+          	if(versionAndDeleted != null) { // if it does not exist, do nothing
+          		fileVersions.put(filename, new Pair(versionAndDeleted.a, true));  // Set deleted flag
+          	}
             // success = success && nfsService.delete(oldVersionedFile);
             // WE DON'T ACTUALLY WANT TO DELETE IT
             // OTHERWISE WE ARE UNRECOVERABLE ON A CRASH RIGHT >HERE<
             break;
           case DELETELINE:
             // make sure we don't overwrite the blank 0-version file
-            version = Math.max(fileVersions.get(filename), 0) + 1;
-            fileVersions.put(filename, version);
+            version = Math.max(fileVersions.get(filename).a, 0) + 1;
+            fileVersions.put(filename, new Pair(version, false));
             newVersionedFile = getVersionedFilename(filename);
             success = success && nfsService.copy(oldVersionedFile, newVersionedFile);
 
