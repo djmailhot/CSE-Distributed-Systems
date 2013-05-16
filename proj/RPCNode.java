@@ -241,11 +241,6 @@ public abstract class RPCNode extends RIONode {
     	  out = new ObjectOutputStream(bos);   
     	  out.writeObject(bundle);
     	  byte[] bytes = bos.toByteArray();
-    	  System.out.println("***********33************");
-      	for(int i = 0;i<bytes.length;i++){
-      		System.out.print((char)bytes[i]);
-      	}
-      	System.out.println("*********33************** " + bytes.length);
     	  return bytes;
     	} catch (IOException e) {
 				// TODO Auto-generated catch block
@@ -263,11 +258,6 @@ public abstract class RPCNode extends RIONode {
     }
     
     public static RPCBundle deserialize(byte[] bytes) {
-    	System.out.println("*************************");
-    	for(int i = 0;i<bytes.length;i++){
-    		System.out.print((char)bytes[i]);
-    	}
-    	System.out.println("************************* " + bytes.length);
     	ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
     	ObjectInput in = null;
     	try {
