@@ -308,6 +308,7 @@ public class Simulator extends Manager {
         NodeCrashException crash = null;
 
         if (isNodeValid(node)) {
+        		System.out.println("valid node");
             Node crashingNode = nodes.get(node);
             try {
                 crashingNode.fail();
@@ -335,6 +336,8 @@ public class Simulator extends Manager {
                 }
             }
         }
+        
+        System.out.println("Returning null exception");
 
         return crash;
     }

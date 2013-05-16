@@ -102,6 +102,9 @@ public class MsgLogger {
 	public void deleteLog(int addr, int seqNum, int sendRecv){
 		String filename = getFilename(seqNum, addr, sendRecv);
     try {
+    	if (nfs == null) {
+    		System.out.println("MSG LOGGER NFS NULL");
+    	}
       nfs.delete(filename);
     } catch(IOException e) {
       e.printStackTrace();
