@@ -238,12 +238,13 @@ public class TwitterNode extends MCCNode {
 		List<String> exists = null;
 		try {
 			 exists = read(filename);
+			 
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-
-		mapUUIDs(transactionId, TwitterOp.LOGIN, Arrays.asList(user, exists.toString()));
+		System.out.println("idMap: " + idMap);
+		mapUUIDs(transactionId, TwitterOp.LOGIN, Arrays.asList(user, exists==null ? "null" : exists.toString()));
 		
 		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
 		b.touchFile(filename);
