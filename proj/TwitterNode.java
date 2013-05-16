@@ -356,7 +356,7 @@ public class TwitterNode extends MCCNode {
 		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
 		b.deleteLine(filename, username);
 		
-		mapUUIDs(transactionId, TwitterOp.FOLLOW, Arrays.asList(unfollowUserName));
+		mapUUIDs(transactionId, TwitterOp.UNFOLLOW, Arrays.asList(unfollowUserName));
 		
 		submitTransaction(DEST_ADDR, b.build());
 		System.out.println("unfollow " + unfollowUserName + " commit sent"); 
@@ -371,7 +371,7 @@ public class TwitterNode extends MCCNode {
 		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
 		b.deleteLine(filename, blockUserName);
 		
-		mapUUIDs(transactionId, TwitterOp.FOLLOW, Arrays.asList(blockUserName));
+		mapUUIDs(transactionId, TwitterOp.BLOCK, Arrays.asList(blockUserName));
 		
 		submitTransaction(DEST_ADDR, b.build());
 		System.out.println("block " + blockUserName + " commit sent"); 
