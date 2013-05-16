@@ -177,7 +177,8 @@ public abstract class RPCNode extends RIONode {
     public final int tid;  // transaction id
     public final boolean success;
     public final NFSTransaction transaction;
-    public final List<MCCFileData> filelist;
+    //public final List<MCCFileData> filelist;
+    public final MCCFileData[] filearray;
 
     /**
      * Wrapper around a file version list and a filesystem transaction.
@@ -195,7 +196,11 @@ public abstract class RPCNode extends RIONode {
                      List<MCCFileData> filelist, NFSTransaction transaction) {
       this.type = type;
       this.success = success;
-      this.filelist = filelist;
+      //this.filelist = filelist;
+      this.filearray = new MCCFileData[filelist.size()]; //filelist.toArray();
+      for (int i = 0; i < filelist.size(); i++) {
+      	this.filearray[i] = filelist.get(i);
+      }
       this.transaction = transaction;
       this.tid = transaction.tid;
     }

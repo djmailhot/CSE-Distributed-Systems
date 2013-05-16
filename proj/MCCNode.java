@@ -482,7 +482,11 @@ public abstract class MCCNode extends RPCNode {
 
   public void onRPCRequest(Integer from, RPCBundle bundle) {
     Log.i(TAG, String.format("From node %d, received %s", from, bundle));
-    onMCCRequest(from, bundle.filelist, bundle.transaction);
+    List<MCCFileData> list = new ArrayList<MCCFileData>();
+    for (MCCFileData file : bundle.filearray) {
+    	list.add(file);
+    }
+    onMCCRequest(from, list, bundle.transaction);
   }
 
   public void onRPCResponse(Integer from, RPCBundle bundle) {
@@ -496,7 +500,11 @@ public abstract class MCCNode extends RPCNode {
       success = success && commitTransaction(bundle.transaction);
     } else {
       // update the cache to the most recent versions
-      updateVersions(bundle.filelist);
+      List<MCCFileData> list = new ArrayList<MCCFileData>();
+      for (MCCFileData file : bundle.filearray) {
+      	list.add(file);
+      }
+      updateVersions(list);
     }
     onMCCResponse(from, bundle.tid, success);
   }
