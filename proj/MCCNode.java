@@ -130,6 +130,7 @@ public abstract class MCCNode extends RPCNode {
       for(NFSTransaction.NFSOperation op : transaction.ops) {
         String filename = op.filename;
         String oldVersionedFile = getVersionedFilename(filename);
+        System.out.println("oldVersionedFile: " + oldVersionedFile);
         String newVersionedFile;
         int version;
         Pair<Integer, Boolean> versionAndDeleted;
@@ -150,6 +151,7 @@ public abstract class MCCNode extends RPCNode {
             success = success && nfsService.create(newVersionedFile);
             break;
           case APPENDLINE:
+          	System.out.println("***************AAAAAAAAAAAAPPPPPPPPPPPPPPPPPPPEEEEEEEEENNNNNNNNNNNNNNNNDDDDDDDDDDD*********************");
           	versionAndDeleted = fileVersions.get(filename);
           	if (versionAndDeleted == null) {
           		// file does not yet exists
@@ -158,8 +160,12 @@ public abstract class MCCNode extends RPCNode {
               // make sure we don't overwrite the blank 0-version file
           		version = Math.max(versionAndDeleted.a, 0) + 1;
           	}
+          	System.out.println("Version: " + version);
             fileVersions.put(filename, new Pair(version, false)); // If we're appending, assume it will exist.
             newVersionedFile = getVersionedFilename(filename);
+            System.out.println("oldVersionedFile: " + oldVersionedFile);
+            System.out.println("newVersionedFile: " + newVersionedFile);
+            System.out.println("Op: " + op);
             if (version > 0) { // only do this for appends to existing files
             	success = success && nfsService.copy(oldVersionedFile, newVersionedFile);
             }
@@ -293,6 +299,8 @@ public abstract class MCCNode extends RPCNode {
               }
     	}
     	//else simulate effect of the command
+    	// TODO: MATT is this else actually doing anything useful? I don't see where you use the result
+    	// of the simulation. Also, it's not really a simulation since the shallow copy actually makes it happen.
     	else {
     		//if not present
     		if(currentActual == null){
@@ -326,8 +334,11 @@ public abstract class MCCNode extends RPCNode {
     				//do nothing
     			}
     			else{
+    				System.out.println("\n I wonder......");
+    				System.out.println(getVersionedFilename("steph_followers.txt"));
     				tempActual.get(op.filename).a += 1;
     				tempCheck.get(op.filename).a += 1;
+    				System.out.println(getVersionedFilename("steph_followers.txt"));
     			}
     		}
     	}
@@ -472,6 +483,9 @@ public abstract class MCCNode extends RPCNode {
     boolean success = bundle.success;
     if(success) {
       // if successful, apply updates locally
+    	System.out.println("****************IN ON RPC RESPONSE**************");
+    	System.out.println(addr);
+    	System.out.println(bundle.transaction);
       success = success && commitTransaction(bundle.transaction);
     } else {
       // update the cache to the most recent versions
@@ -500,6 +514,9 @@ public abstract class MCCNode extends RPCNode {
     List<MCCFileData> filedataUpdate = checkVersions(filedataCheck, transaction);
     if(filedataUpdate.isEmpty()) {
       // UP-TO-VERSION!  COMMIT THAT SUCKA
+    	System.out.println("****************IN ONMCCREQUEST**************");
+    	System.out.println(addr);
+    	System.out.println(transaction);
       commitTransaction(transaction);
       responseBundle = RPCBundle.newResponseBundle(filedataUpdate, transaction, true);
     } else {
