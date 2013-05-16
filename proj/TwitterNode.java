@@ -1,4 +1,5 @@
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -18,6 +19,8 @@ public class TwitterNode extends MCCNode {
 	private int DEST_ADDR = addr == 0? 1 : 0; // Copied from TwoGenerals.java
 	private ClientCommandLogger ccl;
 	
+	private String TWEET_FILE = "current_tweets.txt";
+	private String USER_FILE = "username.txt";
 	
 	boolean waitingForResponse = false;
 	private Map<Integer, Pair<TwitterOp, List<String>>> idMap = new HashMap<Integer, Pair<TwitterOp, List<String>>>();
@@ -70,6 +73,10 @@ public class TwitterNode extends MCCNode {
 		}
 		count++;
 		System.out.println("username: " + username);
+		if (commandQueue.size() > 0) {
+			Pair<String, Integer> commandAndTid = commandQueue.peek();
+			doCommand(commandAndTid.a, commandAndTid.b);
+		}
 		super.start();
 	}
 
@@ -93,67 +100,66 @@ public class TwitterNode extends MCCNode {
 		String[] parsedCommand = command.split(" ");
 		String commandName = parsedCommand[0];
 		if(commandName.equals("login")) {
+			commandQueue.offer(new Pair(command, transactionId));
 				if (waitingForResponse) {
 					System.out.println("Please wait!!");
-					commandQueue.offer(new Pair(command, transactionId));
 				} else {
 					System.out.println("Logging in!!!!");
-					login(parsedCommand[1], transactionId);
 				}
 			
 			return true;
 		} else if (commandName.equals("logout") && username != null) {
+			commandQueue.offer(new Pair(command, transactionId));
 			if (waitingForResponse) {
 				System.out.println("Please wait!!");
-				commandQueue.offer(new Pair(command, transactionId));
 			} else {
 				logout(transactionId);	
 			}
 			return true;
 		} else if (commandName.equals("create")) {
+			commandQueue.offer(new Pair(command, transactionId));
 				if (waitingForResponse) {
 					System.out.println("Please wait!!");
-					commandQueue.offer(new Pair(command, transactionId));
 				} else {
 					create(parsedCommand[1], transactionId);
 				}
 			return true;
 		} else if (commandName.equals("tweet") && username != null) {
+			commandQueue.offer(new Pair(command, transactionId));
 			if (waitingForResponse) {
 				System.out.println("Please wait!!");
-				commandQueue.offer(new Pair(command, transactionId));
 			} else {
 				tweet(command.substring(5).trim(), transactionId);
 			}
 			return true;
 		} else if (commandName.equals("readtweets") && username != null) {
+			commandQueue.offer(new Pair(command, transactionId));
 			if (waitingForResponse) {
 				System.out.println("Please wait!!");
-				commandQueue.offer(new Pair(command, transactionId));
 			} else {
 				readTweets(transactionId);
 			}
 			return true;
 		} else if (commandName.equals("follow") && username != null) {
+			commandQueue.offer(new Pair(command, transactionId));
 			if (waitingForResponse) {
 				System.out.println("Please wait!!");
-				commandQueue.offer(new Pair(command, transactionId));
 			} else {
 				follow(parsedCommand[1], transactionId);
 			}
 			return true;
 		} else if (commandName.equals("unfollow") && username != null) {
+			commandQueue.offer(new Pair(command, transactionId));
 			if (waitingForResponse) {
 				System.out.println("Please wait!!");
-				commandQueue.offer(new Pair(command, transactionId));
 			} else {
 				unfollow(parsedCommand[1], transactionId);
 			}
 			return true;
 		} else if (commandName.equals("block") && username != null) {
+			commandQueue.offer(new Pair(command, transactionId));
 			if (waitingForResponse) {
 				System.out.println("Please wait!!");
-				commandQueue.offer(new Pair(command, transactionId));
 			} else {
 				block(parsedCommand[1], transactionId);
 			}
@@ -292,9 +298,11 @@ public class TwitterNode extends MCCNode {
 		waitingForResponse = true;
 		try {
 			String filename = username + "_stream.txt";
-			List<String> tweets = read(filename); // read the cached copy of the tweets
-			//nfsService.delete(filename);
-			mapUUIDs(transactionId, TwitterOp.READTWEETS, tweets);
+			//List<String> tweets = read(filename); // read the cached copy of the tweets
+			if (nfsService.exists(filename)) {
+				nfsService.copy(filename, TWEET_FILE); // save the tweets on disk. 
+			}
+			mapUUIDs(transactionId, TwitterOp.READTWEETS, null);
 			
 			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
 			b.touchFile(filename);
@@ -370,11 +378,18 @@ public class TwitterNode extends MCCNode {
 	public void onMCCResponse(Integer from, int tid, boolean success) {
 		waitingForResponse = false;
 		Pair<TwitterOp, List<String>> p = idMap.remove(tid);
+		if (p == null) {
+			// If we don't have the info, retry the command. 
+			// If it already happened on the server, it will not do it twice.
+			Pair<String, Integer> peek = commandQueue.peek();
+			doCommand(peek.a, peek.b);
+		}
+		
 		TwitterOp op = p.a;
 		List<String> extraInfo = p.b;
 		
-		if (op == TwitterOp.READTWEETS) {
-			System.out.println("RESPONSE: " + tid + ", success: " + success + ", extraInfo: " + extraInfo);
+		if (extraInfo != null && extraInfo.size() > 0 && extraInfo.get(0).equals("ALREADY_COMPLETED")) {
+			return; // we have already displayed the results of this transaction to the user.
 		}
 		
 		if (success) {
@@ -405,12 +420,20 @@ public class TwitterNode extends MCCNode {
 				break;
 			case READTWEETS: {
 				// We successfully read and deleted the stream file, so now display the tweets to the user.
-				if (extraInfo != null && extraInfo.size() > 0) {
-					for (String tweet : extraInfo) {
+				List<String> tweets;
+				try {
+					tweets = nfsService.read(TWEET_FILE);
+				if (tweets != null && tweets.size() > 0) {
+					for (String tweet : tweets) {
 						System.out.println(tweet);
 					}
 				} else {
 					System.out.println("You have no unread tweets.");
+				}
+				nfsService.delete(TWEET_FILE);
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
 				}
 				pollCommand(tid);
 				break;
@@ -515,8 +538,10 @@ public class TwitterNode extends MCCNode {
 	private void pollCommand(int currentTid) {
 		RIOLayer.responseFinalized(currentTid); // We're done with the old response.
 		ccl.deleteLog(currentTid);
+		commandQueue.poll(); // Dequeue the current command
+		idMap.put(currentTid, new Pair(TwitterOp.LOGOUT, Arrays.asList("ALREADY_COMPLETED")));
 		if (commandQueue.size() > 0) {
-			Pair<String, Integer> commandAndTid = commandQueue.poll();
+			Pair<String, Integer> commandAndTid = commandQueue.peek();
 			doCommand(commandAndTid.a, commandAndTid.b);
 		}
 	}
