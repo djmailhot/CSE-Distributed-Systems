@@ -24,11 +24,12 @@ public class TwitterNode extends MCCNode {
 	Queue<Pair<String, Integer>> commandQueue = new LinkedList<Pair<String, Integer>>();
 	
 	// Ignore disk crashes
-
+	/*
   public static double getFailureRate() { return 0/100.0; }
 	public static double getRecoveryRate() { return 0/100.0; }
 	public static double getDropRate() { return 0/100.0; }
 	public static double getDelayRate() { return 0/100.0; }
+	*/
 
 	public TwitterNode() {
 		super();
@@ -50,6 +51,7 @@ public class TwitterNode extends MCCNode {
 	
 	public void start() {	
 		System.out.println("TwitterNode " + addr + " starting.");
+		idMap = new HashMap<Integer, Pair<TwitterOp, List<String>>>();
 		List<String> file;
 		try {
 			file = nfsService.read("username.txt");
@@ -382,13 +384,18 @@ public class TwitterNode extends MCCNode {
 				break;
 			case LOGIN: 
 				username = extraInfo.get(0);
+				String exists = extraInfo.get(1);
 				try {
-					nfsService.append("username.txt", username);
+					if (!"null".equals(exists)) {
+						nfsService.append("username.txt", username);
+						System.out.println("You are logged in as " + username);
+					} else {
+						System.out.println("User " + extraInfo.get(0) + " does not exist.");
+					}
 				} catch (IOException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-				System.out.println("You are logged in as " + username);
 				pollCommand(tid);
 				break;
 			case TWEET: 
@@ -443,9 +450,19 @@ public class TwitterNode extends MCCNode {
 					e1.printStackTrace();
 				}
 			case LOGIN: 
-				System.out.println("User " + extraInfo.get(0) + " does not exist.");
-				username = null;
-				pollCommand(tid);
+				user = extraInfo.get(0);
+				try {
+					if (exists(user + "_followers.txt")) {
+						doCommand("login " + user, tid);
+					} else {
+						System.out.println("User " + extraInfo.get(0) + " does not exist.");
+						username = null;
+						pollCommand(tid);
+					}
+				} catch (IOException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
 				break;
 			case TWEET: 
 				doCommand("tweet " + extraInfo.get(0), tid); // Retry the transaction.
