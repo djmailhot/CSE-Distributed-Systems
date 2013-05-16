@@ -45,6 +45,10 @@ public class RIOPacket {
 		return this.protocol;
 	}
 	
+	public void setProtocol(int p){
+		this.protocol = p;
+	}
+	
 	/**
 	 * @return The sequence number
 	 */
@@ -52,6 +56,10 @@ public class RIOPacket {
 		return this.seqNum;
 	}
 
+	public void setSeqNum(int s){
+		this.seqNum = s;
+	}
+	
 	/**
 	 * @return The payload
 	 */
@@ -94,6 +102,7 @@ public class RIOPacket {
 	public static RIOPacket unpack(byte[] packet) {
 		try {
 			DataInputStream in = new DataInputStream(new ByteArrayInputStream(packet));
+
 
 			int protocol = in.readByte();
 			int seqNum = in.readInt();

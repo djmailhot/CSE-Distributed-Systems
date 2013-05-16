@@ -96,7 +96,6 @@ public class NFSService {
    * @return true if the write was successful
    */
   public boolean write(String filename, String data) throws IOException {
-    //System.out.println(String.format("write %s = %s", filename, data));
     String tempname = newTempFile(filename);
     PersistentStorageWriter writer = node.getWriter(tempname, false);
     writer.write(data);

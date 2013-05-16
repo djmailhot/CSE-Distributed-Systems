@@ -2,7 +2,7 @@
 /* Store a msg sequence number, destination/source, as well as its contents */
 public class MsgLogEntry implements Comparable<MsgLogEntry> {
 	private final int seqNum;
-	private final String msg;
+	private final byte[] msg;
 	private final int addr;
 	
 	/* Public constructor
@@ -10,7 +10,7 @@ public class MsgLogEntry implements Comparable<MsgLogEntry> {
 	 * seqNum - same as message number
 	 * addr - address to which the message is being sent, or from which it is being received
 	 */
-	public MsgLogEntry(String msg, int seqNum, int addr){
+	public MsgLogEntry(byte[] msg, int seqNum, int addr){
 		this.seqNum = seqNum;
 		this.msg = msg;
 		this.addr = addr;
@@ -22,7 +22,7 @@ public class MsgLogEntry implements Comparable<MsgLogEntry> {
 		return this.seqNum;
 	}
 	
-	public String msg(){
+	public byte[] msg(){
 		return this.msg;
 	}
 	

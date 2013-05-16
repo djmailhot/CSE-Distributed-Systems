@@ -125,45 +125,30 @@ public abstract class MCCNode extends RPCNode {
     }
     boolean success = true;
     try {
+      // TODO:  WHAT HAPPENS WITH VERSION NUMBERS ON A FILE CREATE?
+      // TODO:  WHAT HAPPENS WITH VERSION NUMBERS ON A FILE DELETE?
       for(NFSTransaction.NFSOperation op : transaction.ops) {
         String filename = op.filename;
         String oldVersionedFile = getVersionedFilename(filename);
-        System.out.println("oldVersionedFile: " + oldVersionedFile);
         String newVersionedFile;
         int version;
-        Pair<Integer, Boolean> versionAndDeleted;
         switch (op.opType) {
           case CREATEFILE:
-          	versionAndDeleted = fileVersions.get(filename); // Check for previous version
-          	if(versionAndDeleted != null && versionAndDeleted.b) { // Existed before, is currently deleted.
-          		fileVersions.put(filename, new Pair(versionAndDeleted.a + 1, false));
-          	} else if (versionAndDeleted == null) { // Did not exist before
-          		fileVersions.put(filename, new Pair(0, false));
-          	} else { // Existed before, is not currently deleted
-          		// PANIC!!!!! Matt's checkVersion should make sure this never happens.
-          		System.out.println("PANICCCCCCCCC!!!!!!!!!!!!!!!");
-          		throw new RuntimeException("this is not ok");
-          	}
+            fileVersions.put(filename, 0); // DON'T KNOW IF THIS WILL ACTUALLY WORK
             newVersionedFile = getVersionedFilename(filename);
             // reserve the 0-version file for blank newly created files
             success = success && nfsService.create(newVersionedFile);
             break;
           case APPENDLINE:
-          	System.out.println("***************AAAAAAAAAAAAPPPPPPPPPPPPPPPPPPPEEEEEEEEENNNNNNNNNNNNNNNNDDDDDDDDDDD*********************");
-          	versionAndDeleted = fileVersions.get(filename);
-          	if (versionAndDeleted == null) {
+          	if (fileVersions.get(filename) == null) {
           		// file does not yet exists
           		version = 0;
           	} else {
               // make sure we don't overwrite the blank 0-version file
-          		version = Math.max(versionAndDeleted.a, 0) + 1;
+          		version = Math.max(fileVersions.get(filename), 0) + 1;
           	}
-          	System.out.println("Version: " + version);
-            fileVersions.put(filename, new Pair(version, false)); // If we're appending, assume it will exist.
+            fileVersions.put(filename, version);
             newVersionedFile = getVersionedFilename(filename);
-            System.out.println("oldVersionedFile: " + oldVersionedFile);
-            System.out.println("newVersionedFile: " + newVersionedFile);
-            System.out.println("Op: " + op);
             if (version > 0) { // only do this for appends to existing files
             	success = success && nfsService.copy(oldVersionedFile, newVersionedFile);
             }
@@ -171,18 +156,15 @@ public abstract class MCCNode extends RPCNode {
             success = success && nfsService.append(newVersionedFile, op.dataline);
             break;
           case DELETEFILE:
-          	versionAndDeleted = fileVersions.get(filename);
-          	if(versionAndDeleted != null) { // if it does not exist, do nothing
-          		fileVersions.put(filename, new Pair(versionAndDeleted.a + 1, true));  // Set deleted flag
-          	}
+            fileVersions.put(filename, -1);  // NEVER CREATE A VERSION -1 FILE
             // success = success && nfsService.delete(oldVersionedFile);
             // WE DON'T ACTUALLY WANT TO DELETE IT
             // OTHERWISE WE ARE UNRECOVERABLE ON A CRASH RIGHT >HERE<
             break;
           case DELETELINE:
             // make sure we don't overwrite the blank 0-version file
-            version = Math.max(fileVersions.get(filename).a, 0) + 1;
-            fileVersions.put(filename, new Pair(version, false));
+            version = Math.max(fileVersions.get(filename), 0) + 1;
+            fileVersions.put(filename, version);
             newVersionedFile = getVersionedFilename(filename);
             success = success && nfsService.copy(oldVersionedFile, newVersionedFile);
 
@@ -236,110 +218,146 @@ public abstract class MCCNode extends RPCNode {
     Set<MCCFileData> updates = new HashSet<MCCFileData>();
     
     // map of checked file versions
-    Map<String, Pair<Integer,Boolean>> checkVersions = new HashMap<String, Pair<Integer,Boolean>>();
+    Map<String, Pair<Integer,NFSTransaction.NFSOpType>> checkVersions = new HashMap<String, Pair<Integer,NFSTransaction.NFSOpType>>();
     for(MCCFileData data : filedataCheck) {
-      checkVersions.put(data.filename, new Pair<Integer,Boolean>(data.versionNum,(data.versionNum==-1)?true:false));
+      checkVersions.put(data.filename, new Pair<Integer,NFSTransaction.NFSOpType>(data.versionNum,null));
     }
     
     
-    /* Here we are doing two checks effectively.  First, we are making sure that the client's cache
-     * is synchronized with the server.  Second, we are checking to make sure that the transactions
-     * listed are internally consistent in the order they are listed.  For instance, even if a file
-     * currently exists on the server and the client is up-to-date, we cannot allow a delete 
-     * followed by delete line, since that logically does not make sense.
-     * 
-     * Effectively this loop simulates the commit process to make sure it conforms to logic, and
-     * checks the versions in the client's cache.
-     */    
-    Map<String,Pair<Integer,Boolean>> tempActual = new HashMap<String,Pair<Integer,Boolean>>();
-    for(String s: fileVersions.keySet()){
-    	tempActual.put(s, new Pair<Integer,Boolean>(fileVersions.get(s).a,fileVersions.get(s).b));
-    }
-    
-    Map<String,Pair<Integer,Boolean>> tempCheck = new HashMap<String,Pair<Integer,Boolean>>();
-    for(String s: checkVersions.keySet()){
-    	tempCheck.put(s, new Pair<Integer,Boolean>(checkVersions.get(s).a,checkVersions.get(s).b));
-    }
-    
+    //do your shit in here, with a simulated versioner
+    Map<String,Pair<Integer,Boolean>> tempVersions = new HashMap<String,Pair<Integer,Boolean>>(fileVersions);
     for(NFSTransaction.NFSOperation op : transaction.ops){
-    	Pair<Integer,Boolean> currentActual = tempActual.get(op.filename);
-    	Pair<Integer,Boolean> currentCheck = tempCheck.get(op.filename);
-    	
-    	
-    	//check that versions are up-to-date and we can proceed
+    	Pair<Integer,Boolean> currentVersion = tempVersions.get(op.filename);
+    }
+    
+    /* Step 1: make sure that client's cache is up-to-date with current file system
+     * Step 2: simulate set of transactions to make sure they are consistent with reality
+     * 	(e.g., cannot delete a file and then read from it)
+     */
+    
+    
+    /*-----------------Step 1:-----------------*/
+    for (String filename : checkVersions.keySet()) {
+    	int checkedVersion = checkVersions.get(filename).a;
+    	NFSTransaction.NFSOpType opType = checkVersions.get(filename).b;
     	boolean reject = false;
-    	if(op.opType == NFSTransaction.NFSOpType.DELETELINE){
-    		if(currentActual == null || currentCheck==null || currentActual.b || currentCheck.b || currentActual.a != currentCheck.a){
-    			reject = true;
+    	Pair<Integer,Boolean> actual = fileVersions.get(filename);
+
+    	//Note: client will send checked version -1 if it thinks the file is deleted
+    	//Logic:
+    	//if checked version == -1 then:
+    	//	if file does not appear in fileVersions or if file does appear in fileVersions and is "deleted":
+    	//		if this is create, touch, or append line, then its fine
+    	//		else not fine
+    	//	else not fine
+    	//else if file does not appear in fileVersions then not fine
+    	//else if checked version == actual version and file not deleted then:
+    	//	if its not create then its fine
+    	//	else not fine
+    	//else if marked "deleted" then:
+    	//	if this is create, touch, or append line, then its fine
+    	//	else not fine
+    	//else if checked version ~= actual and actual not marked "deleted" then not fine
+    	if(checkedVersion==-1){
+    		if(actual==null || actual.b){
+    			if(opType != NFSTransaction.NFSOpType.APPENDLINE && opType != NFSTransaction.NFSOpType.CREATEFILE && opType != NFSTransaction.NFSOpType.TOUCHFILE){
+    				reject = true;
+    			}
     		}
+    		else reject = true;
     	}
-    	else{
-    		if(!((currentActual==null && currentCheck==null) || (currentCheck != null && currentCheck.b && currentActual == null) || (currentActual != null && currentActual.b && currentCheck == null) || (currentActual!=null && currentCheck!=null && currentActual.a == currentCheck.a && currentActual.b == currentActual.b))){
-    			reject = true;
-    		}
+    	else if (actual==null){
+    		reject = true;
     	}
+    	else if (actual.a == checkedVersion && !actual.b){
+    		if(opType == NFSTransaction.NFSOpType.CREATEFILE){ 
+				reject = true;
+			}
+    	}
+    	else if(actual.b){
+    		if(opType != NFSTransaction.NFSOpType.APPENDLINE && opType != NFSTransaction.NFSOpType.CREATEFILE && opType != NFSTransaction.NFSOpType.TOUCHFILE){
+				reject = true;
+			}
+    	}
+    	else reject = true;
     	
-    	//if the operation will fail, time to do an update
+    	
     	if(reject){
     		try {
-    			if(currentActual==null || currentActual.b){
-    				updates.add(new MCCFileData(-1, op.filename, "", true));
+    			if(actual==null || actual.b){
+    				updates.add(new MCCFileData(-1, filename, "", true));
     			}
     			else{
-	                String contents = nfsService.readFile(getVersionedFilename(op.filename));
-	                updates.add(new MCCFileData(currentActual.a, op.filename, contents, false));
+	                String contents = nfsService.readFile(getVersionedFilename(filename));
+	                updates.add(new MCCFileData(actual.a, filename, contents, false));
     			}
               } catch(IOException e) {
                 e.printStackTrace();
                 Log.e(TAG, "failure when trying to access file for version update");
               }
     	}
-    	//else simulate effect of the command
-    	else {
-    		//if not present
-    		if(currentActual == null){
-    			if(op.opType != NFSTransaction.NFSOpType.DELETEFILE && op.opType != NFSTransaction.NFSOpType.TOUCHFILE){
-    				tempActual.put(op.filename, new Pair<Integer,Boolean>(0,false));
-    				tempCheck.put(op.filename, new Pair<Integer,Boolean>(0,false));
-    			}    				
-    		}
-    		//if present and deleted
-    		else if (currentActual.b){
-    			if(op.opType == NFSTransaction.NFSOpType.DELETEFILE){
-    				tempActual.get(op.filename).b = true;
-    				tempCheck.get(op.filename).b = true;
-    			}
-    			else if(op.opType != NFSTransaction.NFSOpType.TOUCHFILE){
-	    			tempActual.get(op.filename).a += 1;
-	    			tempActual.get(op.filename).b = false;
-	    			
-	    			tempCheck.get(op.filename).a += 1;
-	    			tempCheck.get(op.filename).b = false;
-    			}
-    		}
-    		//is present and not deleted
-    		else{
-    			if(op.opType == NFSTransaction.NFSOpType.DELETEFILE){
-    				tempActual.get(op.filename).b = true;
-    				tempCheck.get(op.filename).b = true;
-    			}
-    			else if(op.opType == NFSTransaction.NFSOpType.TOUCHFILE){
-    				//do nothing
-    			}
-    			else{
-    				System.out.println("\n I wonder......");
-    				System.out.println(getVersionedFilename("steph_followers.txt"));
-    				tempActual.get(op.filename).a += 1;
-    				tempCheck.get(op.filename).a += 1;
-    				System.out.println(getVersionedFilename("steph_followers.txt"));
-    			}
-    		}
-    	}
+    	
+    	
     }
- 
     
-    // check for any new files on the server not in the filedataCheck list
+    
+    /*-----------------Step 2: simulate set of transactions to make sure they are consistent with reality
+     * 	(e.g., cannot delete a file and then read from it)-----------------*/
+   Map<String,Pair<Integer,Boolean>> tempVersions = new HashMap<String,Pair<Integer,Boolean>>(fileVersions);
+    for(NFSTransaction.NFSOperation op : transaction.ops){
+    	Pair<Integer,Boolean> currentVersion = tempVersions.get(op.filename);	
+    }
+    
+    
+    /*
+    // check on the transaction's requested files
+    for(NFSTransaction.NFSOperation op : transaction.ops) {
+      String filename = op.filename;
+      if(op.opType.equals(NFSTransaction.NFSOpType.CREATEFILE)) {
+        // if a create file operation, make sure file doesn't already exist
+        // this file will not be in the filedataCheck list
+        if(fileVersions.containsKey(filename)) {
+          // INVALID: trying to create a pre-existing file
+          try {
+            String contents = nfsService.readFile(getVersionedFilename(filename));
+            Integer fileversion = fileVersions.get(filename);
+            updates.add(new MCCFileData(fileversion, filename, contents));
+          } catch(IOException e) {
+            e.printStackTrace();
+            Log.e(TAG, "failure when trying to access file for version update");
+          }
+        } // VALID
+      } else if(checkVersions.containsKey(filename)) {
+        Integer fileversion = fileVersions.get(filename);
+        Integer checkversion = checkVersions.get(filename);
+
+        // if the requested file version was invalid
+        if(!fileVersions.containsKey(filename) || fileversion == null) {
+          // INVALID: it was deleted on the server
+          updates.add(new MCCFileData(-1, filename, null));
+        } else if(fileversion != checkversion) {
+          // INVALID: if it has a different version
+          try {
+            String contents = nfsService.readFile(getVersionedFilename(filename));
+            updates.add(new MCCFileData(fileversion, filename, contents));
+          } catch(IOException e) {
+            e.printStackTrace();
+            Log.e(TAG, "failure when trying to access file for version update");
+          }
+        } // VALID
+      } else if (op.opType.equals(NFSTransaction.NFSOpType.APPENDLINE)){
+      	// Here, we are trying to append a line to a file that does not yet exist. 
+      	// This should be ok.
+      	System.out.println("append to a non-existant file !!!!!!!!!!!!!!!!!");
+      } else {
+        // We've got a problem
+      	System.out.println(op.opType);
+        throw new IllegalStateException("filename not found in filedataCheck list");
+      }
+    }
+*/
     Set<String> currentFiles = new HashSet<String>(fileVersions.keySet());
+    // check for any new files on the server not in the filedataCheck list
     currentFiles.removeAll(checkVersions.keySet());
     for(String newFile : currentFiles) {
       // INVALID: there are files on the server
@@ -348,7 +366,6 @@ public abstract class MCCNode extends RPCNode {
       if(!actual.b){
 	      try {
 	        String contents = nfsService.readFile(getVersionedFilename(newFile));
-	        System.out.println("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC");
 	        updates.add(new MCCFileData(actual.a, newFile, contents, actual.b));
 	      } catch(IOException e) {
 	        e.printStackTrace();
@@ -372,7 +389,7 @@ public abstract class MCCNode extends RPCNode {
       for(MCCFileData fileData : filedataUpdate) {
         if(fileData.versionNum == -1) {
           // DELETED
-          fileVersions.put(fileData.filename, new Pair(fileData.versionNum, true));
+          fileVersions.remove(fileData.filename);
         } else if(fileData.contents != null) {
           // UPDATED
           fileVersions.put(fileData.filename, new Pair(fileData.versionNum, fileData.deleted));
@@ -468,11 +485,7 @@ public abstract class MCCNode extends RPCNode {
 
   public void onRPCRequest(Integer from, RPCBundle bundle) {
     Log.i(TAG, String.format("From node %d, received %s", from, bundle));
-    List<MCCFileData> list = new ArrayList<MCCFileData>();
-    for (MCCFileData file : bundle.filearray) {
-    	list.add(file);
-    }
-    onMCCRequest(from, list, bundle.transaction);
+    onMCCRequest(from, bundle.filelist, bundle.transaction);
   }
 
   public void onRPCResponse(Integer from, RPCBundle bundle) {
@@ -480,17 +493,10 @@ public abstract class MCCNode extends RPCNode {
     boolean success = bundle.success;
     if(success) {
       // if successful, apply updates locally
-    	System.out.println("****************IN ON RPC RESPONSE**************");
-    	System.out.println(addr);
-    	System.out.println(bundle.transaction);
       success = success && commitTransaction(bundle.transaction);
     } else {
       // update the cache to the most recent versions
-      List<MCCFileData> list = new ArrayList<MCCFileData>();
-      for (MCCFileData file : bundle.filearray) {
-      	list.add(file);
-      }
-      updateVersions(list);
+      updateVersions(bundle.filelist);
     }
     onMCCResponse(from, bundle.tid, success);
   }
@@ -515,9 +521,6 @@ public abstract class MCCNode extends RPCNode {
     List<MCCFileData> filedataUpdate = checkVersions(filedataCheck, transaction);
     if(filedataUpdate.isEmpty()) {
       // UP-TO-VERSION!  COMMIT THAT SUCKA
-    	System.out.println("****************IN ONMCCREQUEST**************");
-    	System.out.println(addr);
-    	System.out.println(transaction);
       commitTransaction(transaction);
       responseBundle = RPCBundle.newResponseBundle(filedataUpdate, transaction, true);
     } else {
