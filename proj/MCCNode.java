@@ -247,8 +247,16 @@ public abstract class MCCNode extends RPCNode {
      * Effectively this loop simulates the commit process to make sure it conforms to logic, and
      * checks the versions in the client's cache.
      */    
-    Map<String,Pair<Integer,Boolean>> tempActual = new HashMap<String,Pair<Integer,Boolean>>(fileVersions);
-    Map<String,Pair<Integer,Boolean>> tempCheck = new HashMap<String,Pair<Integer,Boolean>>(checkVersions);
+    Map<String,Pair<Integer,Boolean>> tempActual = new HashMap<String,Pair<Integer,Boolean>>();
+    for(String s: fileVersions.keySet()){
+    	tempActual.put(s, new Pair<Integer,Boolean>(fileVersions.get(s).a,fileVersions.get(s).b));
+    }
+    
+    Map<String,Pair<Integer,Boolean>> tempCheck = new HashMap<String,Pair<Integer,Boolean>>();
+    for(String s: checkVersions.keySet()){
+    	tempActual.put(s, new Pair<Integer,Boolean>(checkVersions.get(s).a,checkVersions.get(s).b));
+    }
+    
     for(NFSTransaction.NFSOperation op : transaction.ops){
     	Pair<Integer,Boolean> currentActual = tempActual.get(op.filename);
     	Pair<Integer,Boolean> currentCheck = tempCheck.get(op.filename);
@@ -261,7 +269,7 @@ public abstract class MCCNode extends RPCNode {
     		}
     	}
     	else{
-    		if(!(currentActual==null && currentCheck==null) || (currentCheck != null && currentCheck.b && currentActual == null) || (currentActual != null && currentActual.b && currentCheck == null) || (currentActual!=null && currentCheck!=null && currentActual.a == currentCheck.a && currentActual.b == currentActual.b)){
+    		if(!((currentActual==null && currentCheck==null) || (currentCheck != null && currentCheck.b && currentActual == null) || (currentActual != null && currentActual.b && currentCheck == null) || (currentActual!=null && currentCheck!=null && currentActual.a == currentCheck.a && currentActual.b == currentActual.b))){
     			reject = true;
     		}
     	}
