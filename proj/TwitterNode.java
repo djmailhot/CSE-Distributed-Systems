@@ -232,8 +232,15 @@ public class TwitterNode extends MCCNode {
 	private void login(String user, int transactionId) {//done
 		waitingForResponse = true;
 		String filename = user + "_followers.txt";
+		List<String> exists = null;
+		try {
+			 exists = read(filename);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 
-		mapUUIDs(transactionId, TwitterOp.LOGIN, Arrays.asList(user));
+		mapUUIDs(transactionId, TwitterOp.LOGIN, Arrays.asList(user, exists.toString()));
 		
 		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
 		b.touchFile(filename);
@@ -309,7 +316,7 @@ public class TwitterNode extends MCCNode {
 
 			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
 			b.touchFile(filename); // will this fail if the file does not exist??? I hope so!
-			b.appendLine(filename, followUserName);
+			b.appendLine(filename, username);
 			
 			mapUUIDs(transactionId, TwitterOp.FOLLOW, Arrays.asList(followUserName));
 			

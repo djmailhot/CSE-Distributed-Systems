@@ -10,7 +10,7 @@ public class SerializeTest {
 	public static void main(String[] args) {
 		NFSTransaction.Builder b = new NFSTransaction.Builder(5);
 		List<MCCFileData> list = new ArrayList<MCCFileData>();
-		list.add(new MCCFileData(0, null, null));
+		list.add(new MCCFileData(0, null, null, false));
 		RPCNode.RPCBundle bundle = new RPCNode.RPCBundle(RPCNode.MessageType.REQUEST, true, list, b.build());
 		System.out.println("Before: " + bundle);
 		byte[] serialized = RPCNode.RPCBundle.serialize(bundle);
