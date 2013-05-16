@@ -9,7 +9,7 @@ public class MCCFileData implements Serializable {
   public final boolean deleted;
 
   public MCCFileData(int versionNum, String filename, String contents, boolean deleted) {
-    this.versionNum = this.versionNum;
+    this.versionNum = versionNum;
     this.filename = filename;
     this.contents = contents;
     this.deleted = deleted;

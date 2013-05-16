@@ -270,6 +270,7 @@ public abstract class MCCNode extends RPCNode {
     	System.out.println("-----------------");
     	System.out.println(currentActual);
     	System.out.println(currentCheck);
+    	System.out.println(updates);
     	System.out.println("-----------------");
     	
     	//check that versions are up-to-date and we can proceed
@@ -294,8 +295,13 @@ public abstract class MCCNode extends RPCNode {
     			}
     			else{
 	                String contents = nfsService.readFile(getVersionedFilename(op.filename));
-	                System.out.println("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
+	                System.out.println("-----");
+	                System.out.println(currentActual);
+	                System.out.println(currentActual.a);
+	                System.out.println(updates);
+	                System.out.println("-----");
 	                updates.add(new MCCFileData(currentActual.a, op.filename, contents, false));
+	                System.out.println("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB " + updates);
     			}
               } catch(IOException e) {
                 e.printStackTrace();
@@ -303,8 +309,6 @@ public abstract class MCCNode extends RPCNode {
               }
     	}
     	//else simulate effect of the command
-    	// TODO: MATT is this else actually doing anything useful? I don't see where you use the result
-    	// of the simulation. Also, it's not really a simulation since the shallow copy actually makes it happen.
     	else {
     		//if not present
     		if(currentActual == null){
@@ -329,7 +333,6 @@ public abstract class MCCNode extends RPCNode {
     		}
     		//is present and not deleted
     		else{
-
     			if(op.opType == NFSTransaction.NFSOpType.DELETEFILE){
     				tempActual.get(op.filename).b = true;
     				tempCheck.get(op.filename).b = true;
