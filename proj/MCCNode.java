@@ -260,12 +260,17 @@ public abstract class MCCNode extends RPCNode {
     
     Map<String,Pair<Integer,Boolean>> tempCheck = new HashMap<String,Pair<Integer,Boolean>>();
     for(String s: checkVersions.keySet()){
-    	tempActual.put(s, new Pair<Integer,Boolean>(checkVersions.get(s).a,checkVersions.get(s).b));
+    	tempCheck.put(s, new Pair<Integer,Boolean>(checkVersions.get(s).a,checkVersions.get(s).b));
     }
     
     for(NFSTransaction.NFSOperation op : transaction.ops){
     	Pair<Integer,Boolean> currentActual = tempActual.get(op.filename);
     	Pair<Integer,Boolean> currentCheck = tempCheck.get(op.filename);
+    	
+    	System.out.println("-----------------");
+    	System.out.println(currentActual);
+    	System.out.println(currentCheck);
+    	System.out.println("-----------------");
     	
     	//check that versions are up-to-date and we can proceed
     	boolean reject = false;
