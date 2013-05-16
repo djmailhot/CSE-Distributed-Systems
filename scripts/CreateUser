@@ -1,5 +1,6 @@
 start 0
 start 1
+start 2
 time
 0 create steph
 time
@@ -26,17 +27,12 @@ time
 time
 time
 time
+2 create steph
 time
 time
 time
 time
-0 logout matt
-time
-time
-time
-0 login steph 
 time
 time
 time
 time
-

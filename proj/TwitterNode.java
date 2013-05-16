@@ -16,7 +16,7 @@ import plume.Pair;
  */
 public class TwitterNode extends MCCNode {
 	private String username = null;  // TODO: change back to null
-	private int DEST_ADDR = addr == 0? 1 : 0; // Copied from TwoGenerals.java
+	private int DEST_ADDR = 1; //addr == 0? 1 : 0; // Copied from TwoGenerals.java
 	private ClientCommandLogger ccl;
 	
 	private String TWEET_FILE = "current_tweets.txt";
@@ -72,12 +72,13 @@ public class TwitterNode extends MCCNode {
 			throw new RuntimeException();
 		}
 		count++;
+		super.start();
+		
 		System.out.println("username: " + username);
 		if (commandQueue.size() > 0) {
 			Pair<String, Integer> commandAndTid = commandQueue.peek();
 			doCommand(commandAndTid.a, commandAndTid.b);
 		}
-		super.start();
 	}
 
 	@Override
@@ -94,6 +95,9 @@ public class TwitterNode extends MCCNode {
 	}
 	
 	private boolean doCommand(String command, int transactionId) {
+		if (RIOLayer == null) {
+			System.out.println("This is confusing.");
+		}
 		RIOLayer.responseFinalized(transactionId); // If we're retrying, we're done with the old response.
 		if (command == null) { return false; }
 		
@@ -105,6 +109,7 @@ public class TwitterNode extends MCCNode {
 					System.out.println("Please wait!!");
 				} else {
 					System.out.println("Logging in!!!!");
+					login(parsedCommand[1], transactionId);
 				}
 			
 			return true;
@@ -243,6 +248,7 @@ public class TwitterNode extends MCCNode {
 		List<String> exists = null;
 		try {
 			 exists = read(filename);
+			 nfsService.append(USER_FILE, user);
 			 
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -405,9 +411,11 @@ public class TwitterNode extends MCCNode {
 				String exists = extraInfo.get(1);
 				try {
 					if (!"null".equals(exists)) {
-						nfsService.append("username.txt", username);
+						//nfsService.append("username.txt", username);
 						System.out.println("You are logged in as " + username);
 					} else {
+						nfsService.delete(USER_FILE);
+						username = null;
 						System.out.println("User " + extraInfo.get(0) + " does not exist.");
 					}
 				} catch (IOException e) {
@@ -475,13 +483,15 @@ public class TwitterNode extends MCCNode {
 					// TODO Auto-generated catch block
 					e1.printStackTrace();
 				}
+				break;
 			case LOGIN: 
-				user = extraInfo.get(0);
+				user = username != null? username : extraInfo.get(0);
 				try {
 					if (exists(user + "_followers.txt")) {
 						doCommand("login " + user, tid);
 					} else {
-						System.out.println("User " + extraInfo.get(0) + " does not exist.");
+						System.out.println("User " + user + " does not exist.");
+						nfsService.delete(USER_FILE);
 						username = null;
 						pollCommand(tid);
 					}
