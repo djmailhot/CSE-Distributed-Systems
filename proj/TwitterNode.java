@@ -31,6 +31,7 @@ public class TwitterNode extends MCCNode {
 	*/
 	public static double getRecoveryRate() { return 100/100.0; }
 
+
 	public TwitterNode() {
 		super();
 		this.ccl = new ClientCommandLogger(this);
