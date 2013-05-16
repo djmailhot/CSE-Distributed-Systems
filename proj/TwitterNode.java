@@ -298,9 +298,11 @@ public class TwitterNode extends MCCNode {
 		waitingForResponse = true;
 		try {
 			String filename = username + "_stream.txt";
-			//List<String> tweets = read(filename); // read the cached copy of the tweets
-			if (nfsService.exists(filename)) {
-				nfsService.copy(filename, TWEET_FILE); // save the tweets on disk. 
+			List<String> tweets = read(filename); // read the cached copy of the tweets
+			if (tweets != null) {
+				for (String tweet : tweets) {
+					nfsService.append(TWEET_FILE, tweet); // save the tweets on disk. 
+				}
 			}
 			mapUUIDs(transactionId, TwitterOp.READTWEETS, null);
 			
