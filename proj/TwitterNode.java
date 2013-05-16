@@ -391,7 +391,9 @@ public class TwitterNode extends MCCNode {
 			// If we don't have the info, retry the command. 
 			// If it already happened on the server, it will not do it twice.
 			Pair<String, Integer> peek = commandQueue.peek();
-			doCommand(peek.a, peek.b);
+			if (peek != null) {
+				doCommand(peek.a, peek.b);
+			}
 			return;
 		} 
 		
