@@ -198,6 +198,10 @@ public abstract class MCCNode extends RPCNode {
         }
       }
 
+      if(success==false){
+    	  System.out.println("Check what happened.");
+      }
+      
       writeMetafile();  // atomically commit this transaction
     } catch(IOException e) {
       Log.e(TAG, "File system failure on transaction commit");

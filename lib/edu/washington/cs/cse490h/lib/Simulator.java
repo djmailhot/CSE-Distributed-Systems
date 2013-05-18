@@ -306,31 +306,19 @@ public class Simulator extends Manager {
      */
     private NodeCrashException failNode(int node) {
         NodeCrashException crash = null;
-        
-        System.out.println("Entering: ");
-        try{
-        	new Exception().printStackTrace();
-        } catch(Exception e){
-        	
-        }
 
         if (isNodeValid(node)) {
-        	System.out.println("valid node");
             Node crashingNode = nodes.get(node);
             try {
                 crashingNode.fail();
             } catch (NodeCrashException e) {
                 crash = e;
             }
-            
-            System.out.println("Blah1");
 
             logEventWithNodeField(crashingNode, "FAILURE");
 
             nodes.remove(node);
             crashedNodes.add(node);
-            
-            System.out.println("Blah2");
 
             Iterator<Timeout> iter = waitingTOs.iterator();
             while (iter.hasNext()) {
@@ -340,8 +328,6 @@ public class Simulator extends Manager {
                 }
             }
             
-            System.out.println("Blah3");
-            
             iter = currentTimeouts.iterator();
             while (iter.hasNext()) {
                 Timeout to = iter.next();
@@ -349,8 +335,6 @@ public class Simulator extends Manager {
                 	iter.remove();
                 }
             }
-            
-            System.out.println("Blah4");
         }
 
         return crash;
@@ -358,19 +342,11 @@ public class Simulator extends Manager {
 
     @Override
     protected void checkWriteCrash(Node n, String description) {
-    	System.out.println("Entering 00");
         if (userControl.compareTo(FailureLvl.CRASH) < 0) {
             if (Utility.getRNG().nextDouble() < failureRate) {
                 System.out.println("Randomly failing before write: " + n.addr);
                 NodeCrashException e = failNode(n.addr);
-                // This function is called by Node, so we need to rethrow the
-                // exception to fully stop execution
-//                System.out.println("returned crash exeption: " + e.toString());
-//                System.out.println("returned crash exeption: " + e);
-//                e.printStackTrace();
-                if(e==null){
-                	System.out.println("null");
-                }
+
                 throw e;
             }
         } else {

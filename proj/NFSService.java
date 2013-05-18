@@ -98,11 +98,8 @@ public class NFSService {
   public boolean write(String filename, String data) throws IOException {
     String tempname = newTempFile(filename);
     PersistentStorageWriter writer = node.getWriter(tempname, false);
-    System.out.println("write before");
     writer.write(data);
-    System.out.println("write after");
     writer.close();
-    System.out.println("write before commit");
     return commitTempFile(tempname, filename);
   }
 
@@ -187,7 +184,6 @@ public class NFSService {
     }
     PersistentStorageWriter writer = node.getWriter(filename, true);
     boolean success = writer.delete();
-    System.out.println("Whatever2");
     writer.close();
     return success;
   }
