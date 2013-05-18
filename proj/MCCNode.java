@@ -202,11 +202,10 @@ public abstract class MCCNode extends RPCNode {
       Log.e(TAG, "File system failure on transaction commit");
       e.printStackTrace();
       throw new RuntimeException("File system failure on transaction commit");
-    } finally {
-      Log.i(TAG, String.format("Commit %d actually committed? %s",
-                              transaction.tid, success));
-      return success;
     }
+    Log.i(TAG, String.format("Commit %d actually committed? %s",
+                              transaction.tid, success));
+    return success;
   }
 
   /**
