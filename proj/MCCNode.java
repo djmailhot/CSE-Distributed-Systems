@@ -123,7 +123,7 @@ public abstract class MCCNode extends RPCNode {
       Log.i(TAG, String.format("Transaction %d already committed", transaction.tid));
       return true;
     }
-    boolean success = true;
+    boolean success = false;
     try {
       for(NFSTransaction.NFSOperation op : transaction.ops) {
         String filename = op.filename;
@@ -136,9 +136,9 @@ public abstract class MCCNode extends RPCNode {
           case CREATEFILE:
           	versionAndDeleted = fileVersions.get(filename); // Check for previous version
           	if(versionAndDeleted != null && versionAndDeleted.b) { // Existed before, is currently deleted.
-          		fileVersions.put(filename, new Pair(versionAndDeleted.a + 1, false));
+          		fileVersions.put(filename, new Pair<Integer, Boolean>(versionAndDeleted.a + 1, false));
           	} else if (versionAndDeleted == null) { // Did not exist before
-          		fileVersions.put(filename, new Pair(0, false));
+          		fileVersions.put(filename, new Pair<Integer, Boolean>(0, false));
           	} else { // Existed before, is not currently deleted
           		// PANIC!!!!! Matt's checkVersion should make sure this never happens.
           		System.out.println("PANICCCCCCCCC!!!!!!!!!!!!!!!");
@@ -149,7 +149,6 @@ public abstract class MCCNode extends RPCNode {
             success = success && nfsService.create(newVersionedFile);
             break;
           case APPENDLINE:
-          	System.out.println("***************AAAAAAAAAAAAPPPPPPPPPPPPPPPPPPPEEEEEEEEENNNNNNNNNNNNNNNNDDDDDDDDDDD*********************");
           	versionAndDeleted = fileVersions.get(filename);
           	if (versionAndDeleted == null) {
           		// file does not yet exists
@@ -159,7 +158,7 @@ public abstract class MCCNode extends RPCNode {
           		version = Math.max(versionAndDeleted.a, 0) + 1;
           	}
           	System.out.println("Version: " + version);
-            fileVersions.put(filename, new Pair(version, false)); // If we're appending, assume it will exist.
+            fileVersions.put(filename, new Pair<Integer,Boolean>(version, false)); // If we're appending, assume it will exist.
             newVersionedFile = getVersionedFilename(filename);
             System.out.println("oldVersionedFile: " + oldVersionedFile);
             System.out.println("newVersionedFile: " + newVersionedFile);
@@ -173,16 +172,17 @@ public abstract class MCCNode extends RPCNode {
           case DELETEFILE:
           	versionAndDeleted = fileVersions.get(filename);
           	if(versionAndDeleted != null) { // if it does not exist, do nothing
-          		fileVersions.put(filename, new Pair(versionAndDeleted.a + 1, true));  // Set deleted flag
+          		fileVersions.put(filename, new Pair<Integer, Boolean>(versionAndDeleted.a + 1, true));  // Set deleted flag
           	}
             // success = success && nfsService.delete(oldVersionedFile);
             // WE DON'T ACTUALLY WANT TO DELETE IT
             // OTHERWISE WE ARE UNRECOVERABLE ON A CRASH RIGHT >HERE<
+          	success = true;
             break;
           case DELETELINE:
             // make sure we don't overwrite the blank 0-version file
             version = Math.max(fileVersions.get(filename).a, 0) + 1;
-            fileVersions.put(filename, new Pair(version, false));
+            fileVersions.put(filename, new Pair<Integer, Boolean>(version, false));
             newVersionedFile = getVersionedFilename(filename);
             success = success && nfsService.copy(oldVersionedFile, newVersionedFile);
 
@@ -190,6 +190,7 @@ public abstract class MCCNode extends RPCNode {
             break;
           case TOUCHFILE:
             // do nothing
+        	success = true;
             break;
           default:
             Log.w(TAG, "Received invalid operation type");
@@ -200,12 +201,13 @@ public abstract class MCCNode extends RPCNode {
     } catch(IOException e) {
       Log.e(TAG, "File system failure on transaction commit");
       e.printStackTrace();
-      throw new RuntimeException("File system failure on transaction commit");
-    } finally {
-      Log.i(TAG, String.format("Commit %d actually committed? %s",
+      throw new RuntimeException("File system failure on cache update");
+    } 
+    
+    Log.i(TAG, String.format("Commit %d actually committed? %s",
                               transaction.tid, success));
-      return success;
-    }
+    return success;
+    
   }
 
   /**
@@ -332,11 +334,8 @@ public abstract class MCCNode extends RPCNode {
     				//do nothing
     			}
     			else{
-    				System.out.println("\n I wonder......");
-    				System.out.println(getVersionedFilename("steph_followers.txt"));
     				tempActual.get(op.filename).a += 1;
     				tempCheck.get(op.filename).a += 1;
-    				System.out.println(getVersionedFilename("steph_followers.txt"));
     			}
     		}
     	}
@@ -353,7 +352,6 @@ public abstract class MCCNode extends RPCNode {
       if(!actual.b){
 	      try {
 	        String contents = nfsService.readFile(getVersionedFilename(newFile));
-	        System.out.println("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC");
 	        updates.add(new MCCFileData(actual.a, newFile, contents, actual.b));
 	      } catch(IOException e) {
 	        e.printStackTrace();
@@ -377,10 +375,10 @@ public abstract class MCCNode extends RPCNode {
       for(MCCFileData fileData : filedataUpdate) {
         if(fileData.versionNum == -1) {
           // DELETED
-          fileVersions.put(fileData.filename, new Pair(fileData.versionNum, true));
+          fileVersions.put(fileData.filename, new Pair<Integer, Boolean>(fileData.versionNum, true));
         } else if(fileData.contents != null) {
           // UPDATED
-          fileVersions.put(fileData.filename, new Pair(fileData.versionNum, fileData.deleted));
+          fileVersions.put(fileData.filename, new Pair<Integer, Boolean>(fileData.versionNum, fileData.deleted));
 
           // file version should be good now
           String updatedFilename = getVersionedFilename(fileData.filename);
@@ -522,7 +520,7 @@ public abstract class MCCNode extends RPCNode {
     List<MCCFileData> filedataUpdate = checkVersions(filedataCheck, transaction);
     if(filedataUpdate.isEmpty()) {
       // UP-TO-VERSION!  COMMIT THAT SUCKA
-    	System.out.println("****************IN ONMCCREQUEST**************");
+    	System.out.println("****************IN ON MCC REQUEST**************");
     	System.out.println(addr);
     	System.out.println(transaction);
       commitTransaction(transaction);
