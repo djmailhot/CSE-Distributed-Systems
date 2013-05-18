@@ -306,20 +306,31 @@ public class Simulator extends Manager {
      */
     private NodeCrashException failNode(int node) {
         NodeCrashException crash = null;
+        
+        System.out.println("Entering: ");
+        try{
+        	new Exception().printStackTrace();
+        } catch(Exception e){
+        	
+        }
 
         if (isNodeValid(node)) {
-        		System.out.println("valid node");
+        	System.out.println("valid node");
             Node crashingNode = nodes.get(node);
             try {
                 crashingNode.fail();
             } catch (NodeCrashException e) {
                 crash = e;
             }
+            
+            System.out.println("Blah1");
 
             logEventWithNodeField(crashingNode, "FAILURE");
 
             nodes.remove(node);
             crashedNodes.add(node);
+            
+            System.out.println("Blah2");
 
             Iterator<Timeout> iter = waitingTOs.iterator();
             while (iter.hasNext()) {
@@ -328,6 +339,9 @@ public class Simulator extends Manager {
                 	iter.remove();
                 }
             }
+            
+            System.out.println("Blah3");
+            
             iter = currentTimeouts.iterator();
             while (iter.hasNext()) {
                 Timeout to = iter.next();
@@ -335,21 +349,28 @@ public class Simulator extends Manager {
                 	iter.remove();
                 }
             }
+            
+            System.out.println("Blah4");
         }
-        
-        System.out.println("Returning null exception");
 
         return crash;
     }
 
     @Override
     protected void checkWriteCrash(Node n, String description) {
+    	System.out.println("Entering 00");
         if (userControl.compareTo(FailureLvl.CRASH) < 0) {
             if (Utility.getRNG().nextDouble() < failureRate) {
                 System.out.println("Randomly failing before write: " + n.addr);
                 NodeCrashException e = failNode(n.addr);
                 // This function is called by Node, so we need to rethrow the
                 // exception to fully stop execution
+//                System.out.println("returned crash exeption: " + e.toString());
+//                System.out.println("returned crash exeption: " + e);
+//                e.printStackTrace();
+                if(e==null){
+                	System.out.println("null");
+                }
                 throw e;
             }
         } else {
@@ -662,7 +683,7 @@ public class Simulator extends Manager {
 
         switch (ev.t) {
         case FAILURE:
-            failNode(ev.node);
+        	System.out.println("interesting case 0");
             break;
         case START:
             startNode(ev.node);
@@ -789,6 +810,7 @@ public class Simulator extends Manager {
         try {
             destNode.onReceive(srcAddr, pkt.getProtocol(), pkt.getPayload());
         } catch (NodeCrashException e) {
+        	System.out.println("Made it to deliverPkt");
             failNode(destAddr);
         }
     }
@@ -845,6 +867,7 @@ public class Simulator extends Manager {
 
         // node is crashed but addr is still valid
         if (crashedNodes.contains(nodeAddr)) {
+        	System.out.println("node not valid");
             return false;
         }
 

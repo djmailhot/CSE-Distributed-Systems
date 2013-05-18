@@ -114,16 +114,17 @@ public class MsgLogger {
     		System.out.println("MSG LOGGER NFS NULL");
     	}
       nfs.delete(filename);
+      System.out.println("Whatever3");
     } catch(IOException e) {
       e.printStackTrace();
       throw new RuntimeException("Error with NFS file system");
     }
+    System.out.println("Whatever3");
 	}
 	
 	
 	private static byte[] hexStringToByteArray(String s) {
 	    int len = s.length();
-	    System.out.println("length: " + s.length());
 	    byte[] data = new byte[len / 2];
 	    for (int i = 0; i < len; i += 2) {
 	        data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)

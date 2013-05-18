@@ -49,10 +49,12 @@ public class PersistentStorageWriter extends BufferedWriter {
 
     @Override
     public void write(String s, int off, int len) throws IOException {
+    	System.out.println("Seriously before");
         n.handleDiskWriteEvent("write(s, " + off + ", " + len + ")", "buf:"
                 + Utility.logEscape(s) + " offset:" + off + " len:" + len);
-
+        System.out.println("Seriously after");
         super.write(s, off, len);
+        System.out.println("Seriously really after");
         super.flush();
     }
 
@@ -110,9 +112,11 @@ public class PersistentStorageWriter extends BufferedWriter {
 
     @Override
     public void write(String str) throws IOException {
-        n.handleDiskWriteEvent("write(str)", "buf:" + Utility.logEscape(str));
-
+    	System.out.println("real write before");
+    	n.handleDiskWriteEvent("write(str)", "buf:" + Utility.logEscape(str));
+        System.out.println("real write after");
         super.write(str);
+        System.out.println("real write after 2");
         super.flush();
     }
 
@@ -120,6 +124,8 @@ public class PersistentStorageWriter extends BufferedWriter {
         n.handleDiskWriteEvent("delete of" + f.getName(), "delete:"
                 + f.getName());
 
+        System.out.println("Whatever1");
+        
         close();
         return f.delete();
     }

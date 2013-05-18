@@ -32,7 +32,7 @@ public abstract class Node {
 	 * 
 	 * The student should NOT try to catch this or Error, Throwable, etc.
 	 */
-	class NodeCrashException extends Error {
+	public class NodeCrashException extends Error {
 		private static final long serialVersionUID = 1418673528976798283L;
 	}
 
@@ -261,6 +261,7 @@ public abstract class Node {
 	void handleDiskWriteEvent(String description, String synDescription) {
 		// Ask the manager to check whether we should crash or not.
 		manager.checkWriteCrash(this, description);
+		System.out.println("shouldnt see this");
 		// Since we didn't crash, notify manager of this write event.
 		manager.storageWriteEvent(this, synDescription);
 	}

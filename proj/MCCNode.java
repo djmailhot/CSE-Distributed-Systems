@@ -273,6 +273,11 @@ public abstract class MCCNode extends RPCNode {
     			reject = true;
     		}
     	}
+    	else if(op.opType == NFSTransaction.NFSOpType.CREATEFILE){
+    		if((currentActual!=null && !currentActual.b) || !((currentActual==null && currentCheck==null) || (currentCheck != null && currentCheck.b && currentActual == null) || (currentActual != null && currentActual.b && currentCheck == null) || (currentActual!=null && currentCheck!=null && currentActual.a == currentCheck.a && currentActual.b == currentActual.b))){
+    			reject = true;
+    		}
+    	}
     	else{
     		if(!((currentActual==null && currentCheck==null) || (currentCheck != null && currentCheck.b && currentActual == null) || (currentActual != null && currentActual.b && currentCheck == null) || (currentActual!=null && currentCheck!=null && currentActual.a == currentCheck.a && currentActual.b == currentActual.b))){
     			reject = true;
@@ -414,7 +419,9 @@ public abstract class MCCNode extends RPCNode {
       boolean deleted = versionAndDeleted.b;
       data.append(String.format("%d%s%s%s%s\n", version, METAFILE_DELIMITER, filename, METAFILE_DELIMITER, deleted));
     }
+    System.out.println("Meta before");
     nfsService.write(METAFILE, data.toString());
+    System.out.println("Meta after");
   }
 
 	//----------------------------------------------------------------------------
@@ -480,10 +487,10 @@ public abstract class MCCNode extends RPCNode {
     boolean success = bundle.success;
     if(success) {
       // if successful, apply updates locally
-    	System.out.println("****************IN ON RPC RESPONSE**************");
-    	System.out.println(addr);
-    	System.out.println(bundle.transaction);
-      success = success && commitTransaction(bundle.transaction);
+	    	System.out.println("****************IN ON RPC RESPONSE**************");
+	    	System.out.println(addr);
+	    	System.out.println(bundle.transaction);
+	      success = success && commitTransaction(bundle.transaction);
     } else {
       // update the cache to the most recent versions
       List<MCCFileData> list = new ArrayList<MCCFileData>();

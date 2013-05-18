@@ -1,4 +1,5 @@
 import edu.washington.cs.cse490h.lib.Utility;
+import edu.washington.cs.cse490h.lib.Node.NodeCrashException;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -110,7 +111,8 @@ public abstract class RPCNode extends RIONode {
           default:
             LOG.warning("Received invalid message type");
         }
-      } catch(IllegalArgumentException e) {
+      }
+      catch(IllegalArgumentException e) {
         LOG.warning("Data message could not be deserialized into valid RPCBundle");
       }
     } else {
@@ -265,10 +267,13 @@ public abstract class RPCNode extends RIONode {
     	  Object o = in.readObject(); 
     	  RPCBundle bundle = (RPCBundle) o;
     	  return bundle;
-    	} catch (Exception e) {
+    	} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
-			} finally {
+			} catch (ClassNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} finally {
     	  try {
 					bis.close();
 	    	  in.close();

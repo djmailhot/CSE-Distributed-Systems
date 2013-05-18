@@ -1,4 +1,5 @@
 import edu.washington.cs.cse490h.lib.Node;
+import edu.washington.cs.cse490h.lib.Node.NodeCrashException;
 
 /**
  * Extension to the Node class that adds support for a reliable, in-order

@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import edu.washington.cs.cse490h.lib.Callback;
 import edu.washington.cs.cse490h.lib.Utility;
+import edu.washington.cs.cse490h.lib.Node.NodeCrashException;
 
 /**
  * Layer above the basic messaging layer that provides reliable, in-order
@@ -159,7 +160,13 @@ public class ReliableInOrderMsgLayer {
 					
 					n.send(pair.addr(), Protocol.DATA, newPkt.pack());
 					n.addTimeout(new Callback(onTimeoutMethod, this, new Object[]{ pair.addr(), mle.seqNum() }), ReliableInOrderMsgLayer.TIMEOUT);
-				}catch(Exception e) {
+				}catch(NoSuchMethodException e) {
+					e.printStackTrace();
+				} catch (ClassNotFoundException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				} catch (SecurityException e) {
+					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 			}
@@ -454,7 +461,13 @@ class OutChannel {
 			
 			n.send(destAddr, Protocol.DATA, newPkt.pack());
 			n.addTimeout(new Callback(onTimeoutMethod, parent, new Object[]{ destAddr, lastSeqNumSent }), ReliableInOrderMsgLayer.TIMEOUT);
-		}catch(Exception e) {
+		}catch(NoSuchMethodException e) {
+			e.printStackTrace();
+		} catch (ClassNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (SecurityException e) {
+			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
@@ -508,7 +521,13 @@ class OutChannel {
 			
 			n.send(destAddr, Protocol.DATA, riopkt.pack());
 			n.addTimeout(new Callback(onTimeoutMethod, parent, new Object[]{ destAddr, seqNum }), ReliableInOrderMsgLayer.TIMEOUT);
-		}catch(Exception e) {
+		}catch(NoSuchMethodException e) {
+			e.printStackTrace();
+		} catch (ClassNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (SecurityException e) {
+			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}

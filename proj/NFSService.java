@@ -98,8 +98,11 @@ public class NFSService {
   public boolean write(String filename, String data) throws IOException {
     String tempname = newTempFile(filename);
     PersistentStorageWriter writer = node.getWriter(tempname, false);
+    System.out.println("write before");
     writer.write(data);
+    System.out.println("write after");
     writer.close();
+    System.out.println("write before commit");
     return commitTempFile(tempname, filename);
   }
 
@@ -184,6 +187,7 @@ public class NFSService {
     }
     PersistentStorageWriter writer = node.getWriter(filename, true);
     boolean success = writer.delete();
+    System.out.println("Whatever2");
     writer.close();
     return success;
   }
@@ -267,12 +271,14 @@ public class NFSService {
     //System.out.println("commit " + tempname + " --> " + origfile);
     File oldFile = Utility.getFileHandle(node, tempname);
     if(!oldFile.exists()) {
+    	System.out.println("Finish commit");
       return false;
     }
     File newFile = Utility.getFileHandle(node, origfile);
     Files.move(oldFile.toPath(), newFile.toPath(), 
                StandardCopyOption.REPLACE_EXISTING,
                StandardCopyOption.ATOMIC_MOVE);
+    System.out.println("Finish commit 2");
     return true;
   }
 

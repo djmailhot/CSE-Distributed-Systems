@@ -100,10 +100,12 @@ public class ClientCommandLogger {
 	      int seqNum = this.transID_seqNum.get(transID);
 	      String fileToDelete = buildFilename(seqNum, transID);
 	      nfs.delete(fileToDelete);
+	      System.out.println("Whatever3b");
 	    } catch(IOException e) {
 	      e.printStackTrace();
 	      throw new RuntimeException("Error with NFS file system");
 	    }
+	    System.out.println("Whatever3b");
 	}
 	
 	
