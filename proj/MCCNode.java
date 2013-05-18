@@ -125,6 +125,7 @@ public abstract class MCCNode extends RPCNode {
       return true;
     }
     boolean success = false;
+    boolean runningSuccess = true;
     try {
       for(NFSTransaction.NFSOperation op : transaction.ops) {
         String filename = op.filename;
@@ -147,7 +148,7 @@ public abstract class MCCNode extends RPCNode {
           	}
             newVersionedFile = getVersionedFilename(filename);
             // reserve the 0-version file for blank newly created files
-            success = success && nfsService.create(newVersionedFile);
+            runningSuccess = runningSuccess && nfsService.create(newVersionedFile);
             break;
           case APPENDLINE:
           	versionAndDeleted = fileVersions.get(filename);
@@ -165,10 +166,10 @@ public abstract class MCCNode extends RPCNode {
             System.out.println("newVersionedFile: " + newVersionedFile);
             System.out.println("Op: " + op);
             if (version > 0) { // only do this for appends to existing files
-            	success = success && nfsService.copy(oldVersionedFile, newVersionedFile);
+            	runningSuccess = runningSuccess && nfsService.copy(oldVersionedFile, newVersionedFile);
             }
 
-            success = success && nfsService.append(newVersionedFile, op.dataline);
+            runningSuccess = runningSuccess && nfsService.append(newVersionedFile, op.dataline);
             break;
           case DELETEFILE:
           	versionAndDeleted = fileVersions.get(filename);
@@ -178,31 +179,37 @@ public abstract class MCCNode extends RPCNode {
             // success = success && nfsService.delete(oldVersionedFile);
             // WE DON'T ACTUALLY WANT TO DELETE IT
             // OTHERWISE WE ARE UNRECOVERABLE ON A CRASH RIGHT >HERE<
-          	success = true;
             break;
           case DELETELINE:
             // make sure we don't overwrite the blank 0-version file
             version = Math.max(fileVersions.get(filename).a, 0) + 1;
             fileVersions.put(filename, new Pair<Integer, Boolean>(version, false));
             newVersionedFile = getVersionedFilename(filename);
-            success = success && nfsService.copy(oldVersionedFile, newVersionedFile);
+            runningSuccess = runningSuccess && nfsService.copy(oldVersionedFile, newVersionedFile);
 
-            success = success && nfsService.deleteLine(newVersionedFile, op.dataline);
+            runningSuccess = runningSuccess && nfsService.deleteLine(newVersionedFile, op.dataline);
             break;
           case TOUCHFILE:
             // do nothing
-        	success = true;
             break;
           default:
             Log.w(TAG, "Received invalid operation type");
         }
+        
+        //something went wrong.
+        if(runningSuccess == false){
+        	break;
+        }
       }
 
-      if(success==false){
-    	  System.out.println("Check what happened.");
+      if(runningSuccess==false){
+    	  System.out.println("Commit failed; check what happened.");
+      }
+      else{
+    	  writeMetafile();  // atomically commit this transaction
       }
       
-      writeMetafile();  // atomically commit this transaction
+      success = runningSuccess;
     } catch(IOException e) {
       Log.e(TAG, "File system failure on transaction commit");
       e.printStackTrace();
