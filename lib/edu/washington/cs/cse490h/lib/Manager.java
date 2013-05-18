@@ -152,7 +152,7 @@ public abstract class Manager {
             }
         }
         
-        this.seed = 1368901925842l;
+        this.seed = 1368903897457l;
 
         if (Replay.replayOut != null) {
             Replay.replayOut.writeLong(this.seed);
