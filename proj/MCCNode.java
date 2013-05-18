@@ -29,6 +29,7 @@ public abstract class MCCNode extends RPCNode {
    * Create a new Multiversioned Name File Storage Node.
    */
   public MCCNode() {
+    super();
     this.nfsService = new NFSService(this);
     this.committedTids = new HashSet<Integer>();
     this.fileVersions = new HashMap<String, Pair<Integer, Boolean>>(); // filename, (version, deleted)
