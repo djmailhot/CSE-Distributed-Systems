@@ -261,7 +261,6 @@ public abstract class Node {
 	void handleDiskWriteEvent(String description, String synDescription) {
 		// Ask the manager to check whether we should crash or not.
 		manager.checkWriteCrash(this, description);
-		System.out.println("shouldnt see this");
 		// Since we didn't crash, notify manager of this write event.
 		manager.storageWriteEvent(this, synDescription);
 	}

@@ -114,12 +114,10 @@ public class MsgLogger {
     		System.out.println("MSG LOGGER NFS NULL");
     	}
       nfs.delete(filename);
-      System.out.println("Whatever3");
     } catch(IOException e) {
       e.printStackTrace();
       throw new RuntimeException("Error with NFS file system");
     }
-    System.out.println("Whatever3");
 	}
 	
 	

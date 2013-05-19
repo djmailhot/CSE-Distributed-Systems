@@ -179,6 +179,7 @@ public class ReliableInOrderMsgLayer {
 			// deliver in-order the next sequence of packets
 			System.out.println("cleanup: " + Integer.toString(o.addr));
 			System.out.println("cleanup: " + Integer.toString(o.p.getProtocol()));
+			System.out.println("cleanup: " + o.p.getPayload().length + "bytes");
 			System.out.println("cleanup: " + new String(o.p.getPayload()));
 			n.onRIOReceive(o.addr, o.p.getProtocol(), o.p.getPayload());
 		}
