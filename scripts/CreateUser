@@ -7,27 +7,7 @@ time
 time
 time
 time
-time
-0 create matt
-time
-time
-time
-time
-time
-0 login matt
-time
-time
-time
-time
-time
-time
-time
-0 follow steph
-time
-time
-time
-time
-2 create steph
+0 login steph
 time
 time
 time
@@ -36,23 +16,10 @@ time
 time
 time
 time
-2 login steph
 time
 time
+0 logout steph
 time
-time
-time
-time
-time
-2 follow matt
-time
-time
-time
-time
-time
-time
-time
-2 block matt
 time
 time
 time
