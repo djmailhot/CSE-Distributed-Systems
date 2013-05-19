@@ -528,19 +528,28 @@ public abstract class MCCNode extends RPCNode {
   public void onMCCRequest(Integer from, List<MCCFileData> filedataCheck, 
                            NFSTransaction transaction) {
     RPCBundle responseBundle = null;
-    // verify that the filedataCheck is up-to-version
-    List<MCCFileData> filedataUpdate = checkVersions(filedataCheck, transaction);
-    if(filedataUpdate.isEmpty()) {
-      // UP-TO-VERSION!  COMMIT THAT SUCKA
-    	System.out.println("****************IN ON MCC REQUEST**************");
-    	System.out.println(addr);
-    	System.out.println(transaction);
-      commitTransaction(transaction);
-      responseBundle = RPCBundle.newResponseBundle(filedataUpdate, transaction, true);
+    if(committedTids.contains(transaction.tid)) {
+      // DUPLICATE REQUEST, ALREADY COMMITTED ON THE SERVER
+      responseBundle = RPCBundle.newResponseBundle(new ArrayList<MCCFileData>(), transaction, true);
+
     } else {
-      // NO GOOD!  TOO LATE!  get them the new version data
-      responseBundle = RPCBundle.newResponseBundle(filedataUpdate, transaction, false);
+      // verify that the filedataCheck is up-to-version
+      List<MCCFileData> filedataUpdate = checkVersions(filedataCheck, transaction);
+
+      if(filedataUpdate.isEmpty()) {
+        // UP-TO-VERSION!  COMMIT THAT SUCKA
+        System.out.println("****************IN ON MCC REQUEST**************");
+        System.out.println(addr);
+        System.out.println(transaction);
+        commitTransaction(transaction);
+        responseBundle = RPCBundle.newResponseBundle(filedataUpdate, transaction, true);
+
+      } else {
+        // NO GOOD!  TOO LATE!  get them the new version data
+        responseBundle = RPCBundle.newResponseBundle(filedataUpdate, transaction, false);
+      }
     }
+
     RPCSendResponse(from, responseBundle);
   }
 
