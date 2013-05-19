@@ -256,7 +256,7 @@ public class TwitterNode extends MCCNode {
 			e.printStackTrace();
 		}
 		System.out.println("idMap: " + idMap);
-		mapUUIDs(transactionId, TwitterOp.LOGIN, Arrays.asList(user, exists==null ? "null" : exists.toString()));
+		mapUUIDs(transactionId, TwitterOp.LOGIN, Arrays.asList(user));
 		
 		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
 		b.touchFile(filename);
@@ -412,9 +412,9 @@ public class TwitterNode extends MCCNode {
 				break;
 			case LOGIN: 
 				username = extraInfo.get(0);
-				String exists = extraInfo.get(1);
+				String filename = username + "_followers.txt";
 				try {
-					if (!"null".equals(exists)) {
+					if (exists(filename)) {
 						//nfsService.append("username.txt", username);
 						System.out.println("You are logged in as " + username);
 					} else {
@@ -492,13 +492,13 @@ public class TwitterNode extends MCCNode {
 				user = username != null? username : extraInfo.get(0);
 				try {
 					if (exists(user + "_followers.txt")) {
-						doCommand("login " + user, tid);
+						System.out.println("You are logged in as " + username);
 					} else {
 						System.out.println("User " + user + " does not exist.");
 						nfsService.delete(USER_FILE);
 						username = null;
-						pollCommand(tid);
 					}
+					pollCommand(tid);
 				} catch (IOException e1) {
 					// TODO Auto-generated catch block
 					e1.printStackTrace();
