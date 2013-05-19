@@ -58,7 +58,10 @@ public class TwitterNode extends MCCNode {
 		idMap = new HashMap<Integer, Pair<TwitterOp, List<String>>>();
 		List<String> file;
 		try {
-			file = nfsService.read("username.txt");
+			file = nfsService.read(USER_FILE);
+			if (file == null) {
+				file = nfsService.read("_cow_" + USER_FILE);  // HACK
+			}
 			
 			List<Pair<String, Integer>> loggedCommands = this.ccl.loadLogs();
 			for(Pair<String, Integer> s : loggedCommands){
@@ -249,6 +252,7 @@ public class TwitterNode extends MCCNode {
 		List<String> exists = null;
 		try {
 			 exists = read(filename);
+			 nfsService.delete(USER_FILE);
 			 nfsService.append(USER_FILE, user);
 			 
 		} catch (IOException e) {
