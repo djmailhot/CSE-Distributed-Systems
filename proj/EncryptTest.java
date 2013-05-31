@@ -13,6 +13,19 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 
 
+// TODO:
+//1. Every server node has a secret key, which they use for symmetric encryption/decryption of authorization tokens.
+//		-the key is created upon node construction, and is stored persistently
+//		-reloaded upon restart
+//		-filename is "secretKey.txt"
+//		-all servers share the same secret key, to facilitate sharing of authentication tokens between servers
+//2. Servers will be preloaded with files called "passkeyStore.txt", which will all be identical
+//		-the files have one record per user: name,hash,salt
+//3. Upon login, client the password to some server, transmits that with the login
+//4. Server hashes the password, along with the random salt, and checks that against the passkey store
+//5. Server generates an authentication token by encrypting <address of logging in node><username><salt>
+
+
 public class EncryptTest {
 	
 	
@@ -70,7 +83,7 @@ public class EncryptTest {
 			}
 			
 			
-			//now lets decrypt it to see how it looks  (will include the salt)
+			//now lets decrypt it to see how it looks  (will include the salt at the beginning)
 			c.init(Cipher.DECRYPT_MODE, k);
 			System.out.println("Decrypted: " + new String(c.doFinal(cipherText)));
 		} catch (NoSuchAlgorithmException e) {

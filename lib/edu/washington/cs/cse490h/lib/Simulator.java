@@ -3,12 +3,17 @@ package edu.washington.cs.cse490h.lib;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Random;
+
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
 
 import edu.washington.cs.cse490h.lib.Node.NodeCrashException;
 
@@ -31,6 +36,8 @@ public class Simulator extends Manager {
     private final SynopticLogger synTotalOrderLogger = new SynopticLogger();
 
     private HashSet<Timeout> currentTimeouts;
+    
+    protected byte serverKey[];
 
     /**
      * Base constructor for the Simulator. Does most of the work, but the
@@ -55,6 +62,21 @@ public class Simulator extends Manager {
             String replayOutputFilename, String replayInputFilename)
             throws IllegalArgumentException, IOException {
         super(nodeImpl, seed, replayOutputFilename, replayInputFilename);
+        
+        //generate the servers' secret encryption key;
+        KeyGenerator kg;
+		try {
+			kg = KeyGenerator.getInstance("AES");
+			
+			SecretKey k = kg.generateKey();
+			
+			this.serverKey = k.getEncoded();
+			
+		} catch (NoSuchAlgorithmException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
 
         setParser(new SimulationCommandsParser());
 

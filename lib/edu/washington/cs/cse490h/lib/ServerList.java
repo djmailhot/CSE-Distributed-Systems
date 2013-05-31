@@ -1,3 +1,4 @@
+package edu.washington.cs.cse490h.lib;
 import java.util.HashSet;
 
 //Holds the list of node addresses which are our servers
@@ -12,7 +13,7 @@ public class ServerList {
 	/*
 	 * Returns true iff n is an address in our server list.
 	 */
-	public boolean in(int n){
+	public static boolean in(int n){
 		return serverNodes.contains(n);
 	}
 }

@@ -4,6 +4,7 @@ import java.util.PriorityQueue;
 import java.io.IOException;
 
 import edu.washington.cs.cse490h.lib.Node;
+import edu.washington.cs.cse490h.lib.Utility;
 
 /* This class is used to log messages in a persistent way so we can recover them upon node failures.
  */
@@ -84,10 +85,7 @@ public class MsgLogger {
 		try {
       // can we make this atomic instead?  Is that possible?
       alreadyLogged = nfs.exists(filename);
-      if(!alreadyLogged){
-    	  System.out.println("writing the following: " + msg.length + "bytes");
-    	  System.out.println("To: " + filename);
-			
+      if(!alreadyLogged){			
 		  StringBuilder sb = new StringBuilder();
 		  for(byte b: msg)
 			      sb.append(String.format("%02x", b&0xff));
@@ -121,15 +119,7 @@ public class MsgLogger {
 	}
 	
 	
-	private static byte[] hexStringToByteArray(String s) {
-	    int len = s.length();
-	    byte[] data = new byte[len / 2];
-	    for (int i = 0; i < len; i += 2) {
-	        data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)
-	                             + Character.digit(s.charAt(i+1), 16));
-	    }
-	    return data;
-	}
+	
 	
 	/* Get a list of all logs in the directory, either send or recv, 
 	 * ordered by increasing seqNum.
@@ -146,7 +136,7 @@ public class MsgLogger {
 	        if(s.charAt(0) == delim){
 	          String msg = loadFile(s);
 	          
-	          byte[] msgBytes = hexStringToByteArray(msg);
+	          byte[] msgBytes = Utility.hexStringToByteArray(msg);
 	          
 	          
 	          int addr = Integer.parseInt(s.substring(1, s.indexOf(delim,1)));
@@ -175,7 +165,7 @@ public class MsgLogger {
 	      for(String s : fileNames){
 	        if(s.charAt(0) == delim){
 	          String msg = loadFile(s);
-	          byte[] msgBytes = hexStringToByteArray(msg);
+	          byte[] msgBytes = Utility.hexStringToByteArray(msg);
 	          int currentAddr = Integer.parseInt(s.substring(1, s.indexOf(delim,1)));
 	          int seqNum = Integer.parseInt(s.substring(s.indexOf(delim,1)+1,s.length()-4));
 	          if (currentAddr == addr) logs.add(new MsgLogEntry(msgBytes, seqNum, addr));
