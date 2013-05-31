@@ -439,21 +439,6 @@ public abstract class MCCNode extends RPCNode {
 	//----------------------------------------------------------------------------
 
   /**
-   * DEPRICATED UNTIL FURTHER NOTICE
-   * Submit a transaction to refresh the cache
-   *
-   * Update all files on this NFS file system to match the most recent
-   * versions on the specified remote node.
-   *
-   * @param destAddr the address of the target remote node.
-   *
-   * Will recive a response through the onMCCResponse callback method.
-   */
-  //public void updateAllFiles(int destAddr) {
-    //TODO: Rainbow Dash
-  //}
-
-  /**
    * Submit the specified transaction for committing on the specified remote 
    * node.
    *
@@ -483,6 +468,7 @@ public abstract class MCCNode extends RPCNode {
 	// receive routines
 	//----------------------------------------------------------------------------
 
+  @Override
   public void onRPCRequest(Integer from, RPCBundle bundle) {
     Log.i(TAG, String.format("From node %d, received %s", from, bundle));
     List<MCCFileData> list = new ArrayList<MCCFileData>();
@@ -492,6 +478,7 @@ public abstract class MCCNode extends RPCNode {
     onMCCRequest(from, list, bundle.transaction);
   }
 
+  @Override
   public void onRPCResponse(Integer from, RPCBundle bundle) {
     Log.i(TAG, String.format("From node %d, received %s", from, bundle));
     boolean success = bundle.success;

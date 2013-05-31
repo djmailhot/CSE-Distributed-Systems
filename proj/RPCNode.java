@@ -15,10 +15,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
 
-import org.json.JSONException;
-import org.json.JSONArray;
-import org.json.JSONObject;
-
 /**
  * Extension to the RIONode class that adds support for sending and receiving
  * RPC transactions.
@@ -28,6 +24,13 @@ import org.json.JSONObject;
  */
 public abstract class RPCNode extends RIONode {
   private static final Logger LOG = Logger.getLogger(RPCNode.class.getName());
+
+  /**
+   *
+   */
+  public interface RPCMsg extends Serializable {
+    public MessageType getMsgType();
+  }
 
   /**
    * Enum to specify the RPC message type.
@@ -41,9 +44,38 @@ public abstract class RPCNode extends RIONode {
       else { return null; }
     }
   }
+  
+  /**
+   * Enum to specify the Paxos message type.
+   */
+  private static enum PaxosType {
+    PROPOSE, ACCEPT, REJECT;
+
+    public static PaxosType fromInt(int value) {
+      if(value == PROPOSE.ordinal()) { return PROPOSE; }
+      else if(value == ACCEPT.ordinal()) { return ACCEPT; }
+      else if(value == REJECT.ordinal()) { return REJECT; }
+      else { return null; }
+    }
+  }
+
+  private static class PaxosMsg {
+    private final PaxosType pType;
+    public PaxosMsg(PaxosType pType) {
+      this.pType = pType;
+    }
+  }
+
+
+  // queue of RPC bundles that must be passed to the 
+  private final DeQue<PaxosMsg> msgQueue;
 
   public RPCNode() {
     super();
+  }
+
+  public void start() {
+    msgQueue = new DeQue<PaxosMsg>();
   }
 
 	//----------------------------------------------------------------------------
@@ -64,7 +96,15 @@ public abstract class RPCNode extends RIONode {
    *            If null, won't send any transaction.
 	 */
   public void RPCSendRequest(int destAddr, RPCBundle bundle) {
-    RIOSend(destAddr, Protocol.DATA, RPCBundle.serialize(bundle));
+    // TODO wrap request messages in a Paxos bundle
+
+    // put the bundle in a queue
+    // use paxos to propose this bundle for submission
+    // while not timed out:
+      // if recieved majority of accepts
+      RIOSend(destAddr, Protocol.DATA, RPCBundle.serialize(bundle));
+
+    // put back into queue and retry after an exponential backoff period
   }
 
 	/**
@@ -145,11 +185,8 @@ public abstract class RPCNode extends RIONode {
 	 * 
 	 * @param from
 	 *            The address from which the message was received
-   * @param filelist
-   *            A list of files and version numbers.
-   *            The file contents are not used.
-	 * @param transaction
-	 *            The filesystem transaction to send.
+   * @param bundle
+   *            The RPCBundle data glob
 	 */
   public abstract void onRPCRequest(Integer from, RPCBundle bundle);
 
@@ -160,11 +197,8 @@ public abstract class RPCNode extends RIONode {
 	 * 
 	 * @param from
 	 *            The address from which the message was received
-	 * @param from
-	 *            The address from which the message was received
-   * @param filelist
-   *            A list of files and version numbers.
-   *            The file contents are not used.
+   * @param bundle
+   *            The RPCBundle data glob
    *
 	 */
   public abstract void onRPCResponse(Integer from, RPCBundle bundle);
@@ -296,4 +330,5 @@ public abstract class RPCNode extends RIONode {
       }
     }
   }
+
 }
