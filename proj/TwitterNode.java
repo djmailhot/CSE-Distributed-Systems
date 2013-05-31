@@ -16,6 +16,7 @@ import plume.Pair;
  */
 public class TwitterNode extends MCCNode {
 	private String username = null;  // TODO: change back to null
+	// TODO: change to know the set of server addresses
 	private int DEST_ADDR = 1; //addr == 0? 1 : 0; // Copied from TwoGenerals.java
 	private ClientCommandLogger ccl;
 	
@@ -98,6 +99,7 @@ public class TwitterNode extends MCCNode {
 		System.err.println("Unrecognized command: " + command + ", username: " + username);
 	}
 	
+	// TODO change create user and login to require a password
 	private boolean doCommand(String command, int transactionId) {
 		if (RIOLayer == null) {
 			System.out.println("This is confusing.");
