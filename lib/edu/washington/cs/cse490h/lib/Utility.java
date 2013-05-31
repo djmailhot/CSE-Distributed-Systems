@@ -1,6 +1,9 @@
 package edu.washington.cs.cse490h.lib;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Random;
 
@@ -90,19 +93,35 @@ public class Utility {
         }
         
         //then this node gets a copy of the secret key
+        //just as with f.mkdirs above, we are bypassing all logging/possibility of failure because
+        //	we are assuming this stuff if already in place at the start of the simulation.
         if(ServerList.in(nodeAddr)){
-        	//do something
+        	File skf = getFileHandle(nodeAddr, "secretKey");
+        	BufferedWriter writer;
+			try {
+				writer = new BufferedWriter(new FileWriter(skf,false));
+				StringBuilder sb = new StringBuilder();
+	        	for(byte b : Simulator.serverKey){
+	        		sb.append(String.format("%02x", b&0xff));
+	        	}
+	        	writer.write(sb.toString());
+	            
+	            writer.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}        	
         }
     }
 
-    public static File getFileHandle(Node n, String filename) {
-        File file = new File(realFilename(n.addr, filename));
+    public static File getFileHandle(int n, String filename) {
+        File file = new File(realFilename(n, filename));
         //file.getParentFile().mkdirs();
         return file;
     }
 
-    public static boolean fileExists(Node n, String filename) {
-        File file = new File(realFilename(n.addr, filename));
+    public static boolean fileExists(int n, String filename) {
+        File file = new File(realFilename(n, filename));
         return file.exists();
     }
 }

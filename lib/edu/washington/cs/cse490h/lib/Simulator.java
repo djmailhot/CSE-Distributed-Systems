@@ -37,7 +37,7 @@ public class Simulator extends Manager {
 
     private HashSet<Timeout> currentTimeouts;
     
-    protected byte serverKey[];
+    protected static byte serverKey[];
 
     /**
      * Base constructor for the Simulator. Does most of the work, but the

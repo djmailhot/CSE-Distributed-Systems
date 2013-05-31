@@ -124,11 +124,11 @@ public class NFSService {
    * @return true if file was renamed, false if not
    */
   public boolean copy(String oldname, String newname) throws IOException {
-    File oldFile = Utility.getFileHandle(node, oldname);
+    File oldFile = Utility.getFileHandle(node.addr, oldname);
     if(!oldFile.exists()) {
       return false;
     }
-    File newFile = Utility.getFileHandle(node, newname);
+    File newFile = Utility.getFileHandle(node.addr, newname);
     Files.copy(oldFile.toPath(), newFile.toPath(), 
                StandardCopyOption.REPLACE_EXISTING);
     return true;
@@ -143,7 +143,7 @@ public class NFSService {
    */
   public List<String> getFileList() throws IOException {
     //System.out.println(String.format("getFiles"));
-    File file = Utility.getFileHandle(node, ".");
+    File file = Utility.getFileHandle(node.addr, ".");
     if(!file.exists()) {
       return new ArrayList<String>();
     }
@@ -192,7 +192,7 @@ public class NFSService {
    * @return true if the specified file exists.
    */
   public boolean exists(String filename) throws IOException {
-    return Utility.fileExists(node, filename);
+    return Utility.fileExists(node.addr, filename);
   }
 
 
@@ -265,12 +265,12 @@ public class NFSService {
   private boolean commitTempFile(String tempname, String origfile) 
       throws IOException {
     //System.out.println("commit " + tempname + " --> " + origfile);
-    File oldFile = Utility.getFileHandle(node, tempname);
+    File oldFile = Utility.getFileHandle(node.addr, tempname);
     if(!oldFile.exists()) {
     	System.out.println("Finish commit");
       return false;
     }
-    File newFile = Utility.getFileHandle(node, origfile);
+    File newFile = Utility.getFileHandle(node.addr, origfile);
     Files.move(oldFile.toPath(), newFile.toPath(), 
                StandardCopyOption.REPLACE_EXISTING,
                StandardCopyOption.ATOMIC_MOVE);

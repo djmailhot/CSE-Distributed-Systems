@@ -217,7 +217,7 @@ public abstract class Node {
 	 */
 	public PersistentStorageWriter getWriter(String filename, boolean append)
 	throws IOException {
-		if (!Utility.fileExists(this, filename) || !append) {
+		if (!Utility.fileExists(this.addr, filename) || !append) {
 			handleDiskWriteEvent("creation of " + filename, "create:"
 					+ filename);
 		}
@@ -240,7 +240,7 @@ public abstract class Node {
 	 */
 	public PersistentStorageOutputStream getOutputStream(String filename,
 			boolean append) throws IOException {
-		if (!Utility.fileExists(this, filename) || !append) {
+		if (!Utility.fileExists(this.addr, filename) || !append) {
 			handleDiskWriteEvent("creation of " + filename, "create:"
 					+ filename);
 		}

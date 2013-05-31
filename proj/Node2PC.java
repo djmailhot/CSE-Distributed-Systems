@@ -92,7 +92,7 @@ public class Node2PC extends Node {
     @Override
     public void start() {
         try {
-            if (!Utility.fileExists(this, "log")) {
+            if (!Utility.fileExists(this.addr, "log")) {
                 // First start of node
                 log = getWriter("log", false);
                 logOutput("Started fresh and going to vote: " + vote);
