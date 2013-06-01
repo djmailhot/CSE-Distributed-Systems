@@ -103,9 +103,13 @@ public abstract class RPCNode extends RIONode {
         MessageType messageType = bundle.type;
         switch (messageType) {
           case REQUEST:
+          	// TODO: Here, we hook into Paxos?
+          	// Perhaps we should add PAXOS_REQUEST and PAXOS_RESPONSE to messageType?
+          	// That way, we know the requests here come from a client machine only
             onRPCRequest(from, bundle);
             break;
           case RESPONSE:
+          	// TODO: Here, hook into Paxos?
             onRPCResponse(from, bundle);
             break;
           default:
@@ -137,6 +141,43 @@ public abstract class RPCNode extends RIONode {
     RPCBundle bundle = RPCBundle.deserialize(msg);
     return bundle.type;
   }
+  
+  //-------------------- Paxos Methods Begin -------------------------------------------------------//
+  
+  private void sendPrepareRequest(/* args*/) {
+  	
+  }  
+  
+  private void receivePrepareRequest(/* args*/) {
+  	// Do stuff
+  	sendPrepareResponse();
+  }
+  
+  private void sendPrepareResponse() {
+  	
+  }
+  
+  private void sendAcceptRequest(/* args */) {
+  	
+  }
+  
+  private void receiveAcceptRequest(/* args */) {
+  	// Do stuff
+  	sendAcceptRepsonse();
+  }
+  
+  private void sendAcceptRepsonse() {
+  	
+  }
+  
+  private void sendLearnValueRequest()	 {
+  	
+  }
+  
+  private void receiveLearnValueResponse() {
+  	
+  }
+  //-------------------- Paxos Methods End ---------------------------------------------------------//
   
 	/**
 	 * Method that is called by the RPC layer when an RPC Request transaction is 
