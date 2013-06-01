@@ -135,7 +135,7 @@ public class TwitterNode extends MCCNode {
 				if (waitingForResponse) {
 					System.out.println("Please wait!!");
 				} else {
-					create(parsedCommand[1], transactionId);
+					create(parsedCommand[1], parsedCommand[2], transactionId);
 				}
 			return true;
 		} else if (commandName.equals("tweet") && username != null) {
@@ -235,17 +235,15 @@ public class TwitterNode extends MCCNode {
 	}
 	
 	
-	private void create(String user, int transactionId) {//done
+	private void create(String user, String password, int transactionId) {//done
 		waitingForResponse = true;
 		String filename = user + "_followers.txt";
-		//String streamFilename = user + "_stream.txt";
 
 		//create(filename);
 		mapUUIDs(transactionId, TwitterOp.CREATE, Arrays.asList(user));
 		
-		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
+		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId, password.getBytes());
 		b.createFile(filename);
-		//b.createFile(streamFilename); // ASSUME APPEND WILL CREATE THIS FILE
 		
 		submitTransaction(DEST_ADDR, b.build());
 		System.out.println("create user commit sent"); 
@@ -260,7 +258,7 @@ public class TwitterNode extends MCCNode {
 		args.add(password);
 		mapUUIDs(transactionId, TwitterOp.LOGIN, args);
 		
-		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
+		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId,password.getBytes());
 		b.touchFile(filename);
 		
 		submitTransaction(DEST_ADDR, b.build());
