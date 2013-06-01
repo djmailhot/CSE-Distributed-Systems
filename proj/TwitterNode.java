@@ -411,11 +411,15 @@ public class TwitterNode extends MCCNode {
 				break;
 			case LOGIN: 
 				username = extraInfo.get(0);
+				userToken = Utility.hexStringToByteArray(extraInfo.get(1));
 				String filename = username + "_followers.txt";
 				try {
 					if (exists(filename)) {
-						//nfsService.append("username.txt", username);
 						System.out.println("You are logged in as " + username);
+						
+						nfsService.delete(USER_FILE);
+			            nfsService.append(USER_FILE, username + "\n" + extraInfo.get(1)); 
+						
 					} else {
 						nfsService.delete(USER_FILE);
 						username = null;
