@@ -86,11 +86,7 @@ public class MsgLogger {
       // can we make this atomic instead?  Is that possible?
       alreadyLogged = nfs.exists(filename);
       if(!alreadyLogged){			
-		  StringBuilder sb = new StringBuilder();
-		  for(byte b: msg)
-			      sb.append(String.format("%02x", b&0xff));
-		  String s = sb.toString();
-			
+		String s = Utility.bytesToHexString(msg);			
         nfs.write(filename,s);
       }
     } catch(IOException e) {

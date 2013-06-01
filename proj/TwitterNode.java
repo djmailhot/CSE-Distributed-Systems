@@ -6,6 +6,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+
+import edu.washington.cs.cse490h.lib.Utility;
 import plume.Pair;
 
 /*
@@ -15,9 +17,9 @@ import plume.Pair;
  * - There are no malicious clients. (I.E. no one will delete the currently logged in user.)
  */
 public class TwitterNode extends MCCNode {
-	private String username = null;  // TODO: change back to null
-	// TODO: change to know the set of server addresses
-	private int DEST_ADDR = 1; //addr == 0? 1 : 0; // Copied from TwoGenerals.java
+	private String username = null;
+	private byte[] userToken = null;
+	private int DEST_ADDR = 1;
 	private ClientCommandLogger ccl;
 	
 	private String TWEET_FILE = "current_tweets.txt";
@@ -72,7 +74,11 @@ public class TwitterNode extends MCCNode {
 		} catch (IOException e) {
 			file = null;
 		}
+		
+		//load username and login token from file, if we have already logged in
 		username = (file == null || file.size() == 0) ? null : file.get(0);
+		userToken = (file == null || file.size() == 0) ? null : Utility.hexStringToByteArray(file.get(1));
+		
 		if (username == null && count > 0) {
 			throw new RuntimeException();
 		}
@@ -101,9 +107,6 @@ public class TwitterNode extends MCCNode {
 	
 	// TODO change create user and login to require a password
 	private boolean doCommand(String command, int transactionId) {
-		if (RIOLayer == null) {
-			System.out.println("This is confusing.");
-		}
 		RIOLayer.responseFinalized(transactionId); // If we're retrying, we're done with the old response.
 		if (command == null) { return false; }
 		
@@ -115,7 +118,7 @@ public class TwitterNode extends MCCNode {
 					System.out.println("Please wait!!");
 				} else {
 					System.out.println("Logging in!!!!");
-					login(parsedCommand[1], transactionId);
+					login(parsedCommand[1], parsedCommand[2], transactionId);
 				}
 			
 			return true;
@@ -132,7 +135,7 @@ public class TwitterNode extends MCCNode {
 				if (waitingForResponse) {
 					System.out.println("Please wait!!");
 				} else {
-					create(parsedCommand[1], transactionId);
+					create(parsedCommand[1], parsedCommand[2], transactionId);
 				}
 			return true;
 		} else if (commandName.equals("tweet") && username != null) {
@@ -232,50 +235,40 @@ public class TwitterNode extends MCCNode {
 	}
 	
 	
-	private void create(String user, int transactionId) {//done
+	private void create(String user, String password, int transactionId) {//done
 		waitingForResponse = true;
 		String filename = user + "_followers.txt";
-		//String streamFilename = user + "_stream.txt";
 
 		//create(filename);
 		mapUUIDs(transactionId, TwitterOp.CREATE, Arrays.asList(user));
 		
-		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
+		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId, password.getBytes());
 		b.createFile(filename);
-		//b.createFile(streamFilename); // ASSUME APPEND WILL CREATE THIS FILE
 		
 		submitTransaction(DEST_ADDR, b.build());
 		System.out.println("create user commit sent"); 
 	}
 	
-	private void login(String user, int transactionId) {//done
+	private void login(String user, String password, int transactionId) {
 		waitingForResponse = true;
 		String filename = user + "_followers.txt";
-		List<String> exists = null;
-		try {
-			 exists = read(filename);
-			 nfsService.delete(USER_FILE);
-			 nfsService.append(USER_FILE, user);
-			 
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		System.out.println("idMap: " + idMap);
-		mapUUIDs(transactionId, TwitterOp.LOGIN, Arrays.asList(user));
 		
-		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
+		ArrayList<String> args = new ArrayList<String>(2);
+		args.add(user);
+		args.add(password);
+		mapUUIDs(transactionId, TwitterOp.LOGIN, args);
+		
+		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId,password.getBytes());
 		b.touchFile(filename);
 		
 		submitTransaction(DEST_ADDR, b.build());
 		System.out.println("login user commit sent"); 
 	}
 	
-	private void logout(int transactionId) {//done
+	private void logout(int transactionId) {
 		try {
 			nfsService.delete("username.txt");
-      username = null;
-			//System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+			username = null;
 		} catch (IOException e) {
 		}
 		System.out.println("Logout successful.");
@@ -418,11 +411,15 @@ public class TwitterNode extends MCCNode {
 				break;
 			case LOGIN: 
 				username = extraInfo.get(0);
+				userToken = Utility.hexStringToByteArray(extraInfo.get(1));
 				String filename = username + "_followers.txt";
 				try {
 					if (exists(filename)) {
-						//nfsService.append("username.txt", username);
 						System.out.println("You are logged in as " + username);
+						
+						nfsService.delete(USER_FILE);
+			            nfsService.append(USER_FILE, username + "\n" + extraInfo.get(1)); 
+						
 					} else {
 						nfsService.delete(USER_FILE);
 						username = null;

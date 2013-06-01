@@ -64,6 +64,12 @@ public class Utility {
 	    }
 	    return data;
 	}
+    
+    public static String bytesToHexString(byte[] b){
+    	StringBuilder sb = new StringBuilder();
+		  for(byte current: b) sb.append(String.format("%02x", current&0xff));
+		return sb.toString();
+    }
 
     /**
      * Escapes a string to be suitable for inclusion on a synoptic log event
@@ -94,17 +100,15 @@ public class Utility {
         
         //then this node gets a copy of the secret key
         //just as with f.mkdirs above, we are bypassing all logging/possibility of failure because
-        //	we are assuming this stuff if already in place at the start of the simulation.
+        //	we are assuming this stuff is already in place at the start of the simulation.
         if(ServerList.in(nodeAddr)){
         	File skf = getFileHandle(nodeAddr, "secretKey");
         	BufferedWriter writer;
 			try {
 				writer = new BufferedWriter(new FileWriter(skf,false));
-				StringBuilder sb = new StringBuilder();
-	        	for(byte b : Simulator.serverKey){
-	        		sb.append(String.format("%02x", b&0xff));
-	        	}
-	        	writer.write(sb.toString());
+				String s = bytesToHexString(Simulator.serverKey);
+				
+	        	writer.write(s);
 	            
 	            writer.close();
 			} catch (IOException e) {
