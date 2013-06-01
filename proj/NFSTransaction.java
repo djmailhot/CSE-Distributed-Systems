@@ -33,12 +33,17 @@ public class NFSTransaction implements Serializable {
 
     /** The unique id for this transaction. */
     public final int tid; 
+    
+    /** where we store the password or authentication token **/
+    public final byte[] securityCredential;
+    
     /** An unmodifiable list of filesystem operations. */
     public final List<NFSOperation> ops;
 
 
     private NFSTransaction(Builder b) {
         this.tid = b.tid;
+        this.securityCredential = b.securityCredential;
         this.ops = Collections.unmodifiableList(b.ops);
         assert(checkRep());
     }
@@ -50,9 +55,13 @@ public class NFSTransaction implements Serializable {
     public String toString() {
         StringBuilder b = new StringBuilder("NFSTransaction");
         b.append(String.format("[%d]:", tid));
+        if(this.securityCredential != null){
+        	b.append(String.format("\n<%s>", this.securityCredential));
+        }
         for(NFSOperation op : ops) {
             b.append(String.format("\n\t\t%s", op));
         }
+
         return b.toString();
     }
 
@@ -119,11 +128,20 @@ public class NFSTransaction implements Serializable {
     public static class Builder {
         private final int tid;
         private final List<NFSOperation> ops;
+        private byte[] securityCredential;
 
         public Builder(int tid) {
             this.tid = tid;
             this.ops = new ArrayList<NFSOperation>();
         }
+        
+
+        public Builder(int tid, byte[] securityCredential) {
+            this.tid = tid;
+            this.securityCredential = securityCredential;
+            this.ops = new ArrayList<NFSOperation>();
+        }
+
 
         public Builder touchFile(String filename) {
             ops.add(new NFSOperation(NFSOpType.TOUCHFILE, filename));
