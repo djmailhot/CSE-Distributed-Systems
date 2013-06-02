@@ -401,8 +401,7 @@ public abstract class RPCNode extends RIONode {
     public static final String TAG = "PaxosManager";
 
     /**
-     * Very useful resources to access available from the outer RPCNode class
-     * instance.
+     * Very useful resources available from the outer RPCNode class instance.
      *
      * Set<Integer> servers
      *    The set of all server nodes.
@@ -481,10 +480,17 @@ public abstract class RPCNode extends RIONode {
       PaxosMsgType type = msg.msgType;
       switch(type) {
         // TODO: Can rename these if you like
+
         case PREPARE:
+          // node received a proposal PREPARE message
         case LEARN:
+          // node directed to LEARN a new value
         // case ACCEPT: should never get this
         // case REJECT: should never get this
+        case UPDATE:
+          // node queried to provide all updates committed since the
+          // attached proposal
+          // NOTE: this is how a node will update state after a restart
         default:
           Log.w(TAG, "Invalid PaxosMsgType on a request");
       }
@@ -504,10 +510,16 @@ public abstract class RPCNode extends RIONode {
       PaxosMsgType type = msg.msgType;
       switch(type) {
         // TODO: Can rename these if you like
+
         // case PREPARE: should never get this
         // case LEARN: should never get this
         case ACCEPT:
+          // node received an ACCEPT in response to a PREPARE message
         case REJECT:
+          // node received a REJECT in response to a PREPARE message
+        case UPDATE:
+          // node receiving a catch-up proposal update
+          // NOTE: this is how a node will update state after a restart
         default:
           Log.w(TAG, "Invalid PaxosMsgType on a response");
       }
@@ -565,13 +577,14 @@ public abstract class RPCNode extends RIONode {
    * Enum to specify the Paxos message type.
    */
   private static enum PaxosMsgType {
-    PREPARE, LEARN, ACCEPT, REJECT;
+    PREPARE, LEARN, ACCEPT, REJECT, UPDATE;
 
     public static PaxosMsgType fromInt(int value) {
       if(value == PREPARE.ordinal()) { return PREPARE; }
       else if(value == LEARN.ordinal()) { return LEARN; }
       else if(value == ACCEPT.ordinal()) { return ACCEPT; }
       else if(value == REJECT.ordinal()) { return REJECT; }
+      else if(value == UPDATE.ordinal()) { return UPDATE; }
       else { return null; }
     }
   }
