@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
 
+import plume.Pair;
+
 /**
  * Extension to the RIONode class that adds support for sending and receiving
  * RPC transactions.

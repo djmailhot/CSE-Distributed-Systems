@@ -11,7 +11,7 @@ public class SerializeTest {
 		NFSTransaction.Builder b = new NFSTransaction.Builder(5);
 		List<MCCNode.MCCFileData> list = new ArrayList<MCCNode.MCCFileData>();
 		list.add(new MCCNode.MCCFileData(0, null, null, false));
-    RPCNode.RPCMsg msg = new MCCNode.MCCMsg(list, b.build(), true);
+    RPCNode.RPCMsg msg = new MCCNode.MCCMsg(list, b.build());
 		RPCNode.RPCCallBundle bundle = 
             new RPCNode.RPCCallBundle(msg.getId(), RPCNode.RPCCallType.REQUEST,
                                       RPCNode.RPCMsgType.COMMIT, msg);
