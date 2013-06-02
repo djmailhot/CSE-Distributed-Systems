@@ -19,6 +19,8 @@ import org.json.JSONException;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import plume.Pair;
+
 /**
  * Extension to the RIONode class that adds support for sending and receiving
  * RPC transactions.
@@ -219,6 +221,7 @@ public abstract class RPCNode extends RIONode {
     public final MessageType type;  // request or response
     public final int tid;  // transaction id
     public final boolean success;
+    public final Pair<Boolean,byte[]> securityResponse;
     public final NFSTransaction transaction;
     //public final List<MCCFileData> filelist;
     public final MCCFileData[] filearray;
@@ -239,6 +242,24 @@ public abstract class RPCNode extends RIONode {
                      List<MCCFileData> filelist, NFSTransaction transaction) {
       this.type = type;
       this.success = success;
+      this.securityResponse = new Pair<Boolean,byte[]>(true,null);
+      //this.filelist = filelist;
+      this.filearray = new MCCFileData[filelist.size()]; //filelist.toArray();
+      for (int i = 0; i < filelist.size(); i++) {
+      	this.filearray[i] = filelist.get(i);
+      }
+      this.transaction = transaction;
+      this.tid = transaction.tid;
+    }
+    
+    /**
+     * Same constructor as above, but includes a security-related flag.
+     */
+    RPCBundle(MessageType type, boolean success, Pair<Boolean,byte[]> securityResponse,
+                     List<MCCFileData> filelist, NFSTransaction transaction) {
+      this.type = type;
+      this.success = success;
+      this.securityResponse = securityResponse;
       //this.filelist = filelist;
       this.filearray = new MCCFileData[filelist.size()]; //filelist.toArray();
       for (int i = 0; i < filelist.size(); i++) {
@@ -273,8 +294,8 @@ public abstract class RPCNode extends RIONode {
      */
     public static RPCBundle newResponseBundle(List<MCCFileData> filelist,
                                               NFSTransaction transaction,
-                                              boolean success) {
-      return new RPCBundle(MessageType.RESPONSE, success, filelist, transaction);
+                                              boolean success, Pair<Boolean,byte[]> securityResponse) {
+      return new RPCBundle(MessageType.RESPONSE, success, securityResponse, filelist, transaction);
     }
     
     public static byte[] serialize(RPCBundle bundle) {

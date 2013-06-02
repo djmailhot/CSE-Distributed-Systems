@@ -5,7 +5,19 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.security.InvalidKeyException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.util.Random;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
+import javax.crypto.Cipher;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * Provides some useful static methods.
@@ -91,6 +103,93 @@ public class Utility {
     static String realFilename(int nodeAddr, String filename) {
         return "storage/" + nodeAddr + "/" + filename;
     }
+    
+    /**
+     * Returns a cryptographically-secure hashing of the bytes in s.
+     * Can append a salt to the end, or optionally leave salt null for no salt.
+     */
+    public static byte[] hashBytes(String s, byte[] salt){
+    	byte[] bytesToHash;
+    	byte[] b = s.getBytes();
+    	if(salt != null){
+    		bytesToHash = new byte[b.length + salt.length];
+    		System.arraycopy(b, 0, bytesToHash, 0, b.length);
+    		System.arraycopy(salt, 0, bytesToHash, b.length, salt.length);
+    	}
+    	else{
+    		bytesToHash = b;
+    	}
+    	
+    	MessageDigest md;
+		try {
+			md = MessageDigest.getInstance("SHA-256");
+			return md.digest(bytesToHash);
+		} catch (NoSuchAlgorithmException e) {
+			e.printStackTrace();
+			return null;
+		}
+    }
+    
+    public static byte[] AESEncrypt(byte[] input, byte[] key){
+    	try{
+	    	Cipher c = Cipher.getInstance("AES/ECB/PKCS5Padding");
+	    	SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("AES");
+	    	c.init(Cipher.ENCRYPT_MODE, keyFactory.generateSecret(new SecretKeySpec(key,"AES")));
+	    	
+	    	return c.doFinal(input);
+    	} catch (NoSuchAlgorithmException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (NoSuchPaddingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (InvalidKeyException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (InvalidKeySpecException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IllegalBlockSizeException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (BadPaddingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+    	
+    	return null;
+    }
+    
+    public static byte[] AESDecrypt(byte[] input, byte[] key){
+    	try{
+	    	Cipher c = Cipher.getInstance("AES/ECB/PKCS5Padding");
+	    	SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("AES");
+	    	c.init(Cipher.DECRYPT_MODE, keyFactory.generateSecret(new SecretKeySpec(key,"AES")));
+	    	
+	    	return c.doFinal(input);
+    	} catch (NoSuchAlgorithmException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (NoSuchPaddingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (InvalidKeyException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (InvalidKeySpecException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IllegalBlockSizeException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (BadPaddingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+    	
+    	return null;
+    	
+    }
 
     static void mkdirs(int nodeAddr) {
         File f = new File("storage/" + nodeAddr + "");
@@ -103,7 +202,9 @@ public class Utility {
         //	we are assuming this stuff is already in place at the start of the simulation.
         if(ServerList.in(nodeAddr)){
         	File skf = getFileHandle(nodeAddr, "secretKey");
+        	File ksf = getFileHandle(nodeAddr, "keyStore");
         	BufferedWriter writer;
+        	BufferedWriter writer2;
 			try {
 				writer = new BufferedWriter(new FileWriter(skf,false));
 				String s = bytesToHexString(Simulator.serverKey);
@@ -111,6 +212,11 @@ public class Utility {
 	        	writer.write(s);
 	            
 	            writer.close();
+	            
+	            writer2 = new BufferedWriter(new FileWriter(ksf,false));
+	            writer2.write("");
+	            writer2.close();
+	            
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();

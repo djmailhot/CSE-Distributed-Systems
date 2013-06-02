@@ -235,7 +235,7 @@ public class TwitterNode extends MCCNode {
 	}
 	
 	
-	private void create(String user, String password, int transactionId) {//done
+	private void create(String user, String password, int transactionId) {
 		waitingForResponse = true;
 		String filename = user + "_followers.txt";
 
@@ -243,7 +243,7 @@ public class TwitterNode extends MCCNode {
 		mapUUIDs(transactionId, TwitterOp.CREATE, Arrays.asList(user));
 		
 		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId, password.getBytes());
-		b.createFile(filename);
+		b.createFile_newUser(filename, user, password);
 		
 		submitTransaction(DEST_ADDR, b.build());
 		System.out.println("create user commit sent"); 
@@ -258,7 +258,7 @@ public class TwitterNode extends MCCNode {
 		args.add(password);
 		mapUUIDs(transactionId, TwitterOp.LOGIN, args);
 		
-		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId,password.getBytes());
+		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId,(user + "|" + password).getBytes());
 		b.touchFile(filename);
 		
 		submitTransaction(DEST_ADDR, b.build());
@@ -315,12 +315,10 @@ public class TwitterNode extends MCCNode {
 			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
 			b.touchFile(filename);
 			b.deleteFile(filename);
-			//b.createFile(filename); // ASSUME APPEND WILL CREATE THIS FILE
 			
 			submitTransaction(DEST_ADDR, b.build());
 			System.out.println("read tweets commit sent");
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} 
 	}
@@ -347,11 +345,9 @@ public class TwitterNode extends MCCNode {
 		} 
 	}
 	
-	private void unfollow(String unfollowUserName, int transactionId) {//done
+	private void unfollow(String unfollowUserName, int transactionId) {
 		waitingForResponse = true;
 		String filename = unfollowUserName + "_followers.txt";
-		
-		//nfsService.deleteLine(filename, username);
 
 		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
 		b.deleteLine(filename, username);
@@ -365,8 +361,6 @@ public class TwitterNode extends MCCNode {
 	private void block(String blockUserName, int transactionId) {//done
 		waitingForResponse = true;
 		String filename = username + "_followers.txt";
-		
-		//nfsService.deleteLine(filename, blockUserName);
 
 		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
 		b.deleteLine(filename, blockUserName);
@@ -383,7 +377,7 @@ public class TwitterNode extends MCCNode {
 
 	// Assumes cache is up to date
 	@Override
-	public void onMCCResponse(Integer from, int tid, boolean success) {
+	public void onMCCResponse(Integer from, int tid, boolean success, Pair<Boolean,byte[]> securityResponse) {
 		waitingForResponse = false;
 		Pair<TwitterOp, List<String>> p = idMap.remove(tid);
 		if (p == null) {
@@ -403,7 +397,7 @@ public class TwitterNode extends MCCNode {
 			return; // we have already displayed the results of this transaction to the user.
 		}
 		
-		if (success) {
+		if (success && securityResponse.a) {
 			switch(op){		
 			case CREATE: 
 				System.out.println("You created user " + extraInfo.get(0));
@@ -411,14 +405,14 @@ public class TwitterNode extends MCCNode {
 				break;
 			case LOGIN: 
 				username = extraInfo.get(0);
-				userToken = Utility.hexStringToByteArray(extraInfo.get(1));
+				userToken = securityResponse.b;
 				String filename = username + "_followers.txt";
 				try {
 					if (exists(filename)) {
 						System.out.println("You are logged in as " + username);
 						
 						nfsService.delete(USER_FILE);
-			            nfsService.append(USER_FILE, username + "\n" + extraInfo.get(1)); 
+			            nfsService.append(USER_FILE, username + "\n" + userToken); 
 						
 					} else {
 						nfsService.delete(USER_FILE);
@@ -449,21 +443,18 @@ public class TwitterNode extends MCCNode {
 				}
 				nfsService.delete(TWEET_FILE);
 				} catch (IOException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 				pollCommand(tid);
 				break;
 			}
 			case FOLLOW: {
-				// updateAllFiles(DEST_ADDR); // not needed anymore. probably. - David
 				System.out.println("You are now following " + extraInfo.get(0));
 				pollCommand(tid);
 				break;
 				
 			}
 			case UNFOLLOW: 
-				// updateAllFiles(DEST_ADDR); // not needed anymore. probably. - David
 				System.out.println("You are no longer following " + extraInfo.get(0));
 				pollCommand(tid);
 				break;
@@ -474,8 +465,10 @@ public class TwitterNode extends MCCNode {
 			default:
 				break;
 			}
-			
-		} else { // NOT SUCCESSFUL
+		} else if (!securityResponse.a){//we tried something not secure; abort.
+			System.out.println("Server responded that we are doing something not allowed by the security model!!");
+			pollCommand(tid);
+		} else { // NOT SUCCESSFUL for some non-security reason
 			switch(op){		
 			case CREATE: 
 				String user = extraInfo.get(0);

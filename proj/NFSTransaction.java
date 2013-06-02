@@ -35,7 +35,7 @@ public class NFSTransaction implements Serializable {
     public final int tid; 
     
     /** where we store the password or authentication token **/
-    public final byte[] securityCredential;
+    public byte[] securityCredential;
     
     /** An unmodifiable list of filesystem operations. */
     public final List<NFSOperation> ops;
@@ -150,6 +150,11 @@ public class NFSTransaction implements Serializable {
 
         public Builder createFile(String filename) {
             ops.add(new NFSOperation(NFSOpType.CREATEFILE, filename));
+            return this;
+        }
+        
+        public Builder createFile_newUser(String filename, String username, String password) {
+            ops.add(new NFSOperation(NFSOpType.CREATEFILE, filename, username + "|" + password));
             return this;
         }
 

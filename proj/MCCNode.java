@@ -4,7 +4,12 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
+
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
 
 import plume.Pair;
 
@@ -18,12 +23,21 @@ public abstract class MCCNode extends RPCNode {
   private static final String TAG = "RPCNode";
   private static final String METAFILE = "METAFILE";
   private static final String METAFILE_DELIMITER = "\t";
+  private static final String CREDENTIAL_DELIMITER = "\t";
   private static final String VERSION_DELIMITER = "@";
 
   protected final NFSService nfsService;
-
+  
   private Set<Integer> committedTids;
   private Map<String, Pair<Integer, Boolean>> fileVersions;
+  
+  /**
+   * Security related objects
+   */
+  private byte[] secretKey;
+  private HashMap<String,Pair<byte[],byte[]>> userCredentials;  //username:(salt,key hash) loaded from keystore
+  private static String KEYSTORE_FILENAME = "keyStore";
+  private static String SECRET_KEY_FILENAME = "secretKey";
 
   /**
    * Create a new Multiversioned Name File Storage Node.
@@ -33,11 +47,27 @@ public abstract class MCCNode extends RPCNode {
     this.nfsService = new NFSService(this);
     this.committedTids = new HashSet<Integer>();
     this.fileVersions = new HashMap<String, Pair<Integer, Boolean>>(); // filename, (version, deleted)
+    
+    loadSecretKey();
   }
 
-  public void start() {
+  private void loadSecretKey() {
+	  try {
+		//should have one line
+		List<String> lines = nfsService.read(SECRET_KEY_FILENAME);
+		
+		this.secretKey = Utility.hexStringToByteArray(lines.get(0));
+		
+	} catch (IOException e) {
+		e.printStackTrace();
+	}
+	
+  }
+
+public void start() {
     this.committedTids.clear();
     this.fileVersions.clear();
+    this.userCredentials.clear();
 
     // read the metafile and populate the internal data structures
     try {
@@ -70,6 +100,29 @@ public abstract class MCCNode extends RPCNode {
     }
 
     Log.i(TAG, String.format("read in METAFILE with contents %s", fileVersions));
+    
+    
+    //load user security credentials file
+    try {
+		List<String> credentialStrings = nfsService.read(KEYSTORE_FILENAME);
+		
+		for(String line : credentialStrings) {
+	          line = line.trim();
+	          // if the empty string
+	          if(line.length() == 0) {
+	            continue;
+	          }
+
+	          String[] tokens = line.split(CREDENTIAL_DELIMITER);
+	          if(tokens.length == 3) {
+	        	  this.userCredentials.put(tokens[0], new Pair<byte[],byte[]>(Utility.hexStringToByteArray(tokens[1]),Utility.hexStringToByteArray(tokens[2])));
+	          } else {
+	            throw new IllegalStateException("User security credentials format corrupted");
+	          }
+	        }
+	} catch (IOException e) {
+		e.printStackTrace();
+	}
 
     super.start();
   }
@@ -143,7 +196,7 @@ public abstract class MCCNode extends RPCNode {
           		fileVersions.put(filename, new Pair<Integer, Boolean>(0, false));
           	} else { // Existed before, is not currently deleted
           		// PANIC!!!!! Matt's checkVersion should make sure this never happens.
-          		System.out.println("PANICCCCCCCCC!!!!!!!!!!!!!!!");
+          		System.out.println("PANICCCCCCCCC!!!!!!!!!!!!!!!  Trying to create existing file!");
           		throw new RuntimeException("this is not ok");
           	}
             newVersionedFile = getVersionedFilename(filename);
@@ -439,21 +492,6 @@ public abstract class MCCNode extends RPCNode {
 	//----------------------------------------------------------------------------
 
   /**
-   * DEPRICATED UNTIL FURTHER NOTICE
-   * Submit a transaction to refresh the cache
-   *
-   * Update all files on this NFS file system to match the most recent
-   * versions on the specified remote node.
-   *
-   * @param destAddr the address of the target remote node.
-   *
-   * Will recive a response through the onMCCResponse callback method.
-   */
-  //public void updateAllFiles(int destAddr) {
-    //TODO: Rainbow Dash
-  //}
-
-  /**
    * Submit the specified transaction for committing on the specified remote 
    * node.
    *
@@ -495,7 +533,8 @@ public abstract class MCCNode extends RPCNode {
   public void onRPCResponse(Integer from, RPCBundle bundle) {
     Log.i(TAG, String.format("From node %d, received %s", from, bundle));
     boolean success = bundle.success;
-    if(success) {
+    Pair<Boolean,byte[]> securityResponse = bundle.securityResponse;
+    if(success && securityResponse.a) {
       // if successful, apply updates locally
 	    	System.out.println("****************IN ON RPC RESPONSE**************");
 	    	System.out.println(addr);
@@ -509,7 +548,7 @@ public abstract class MCCNode extends RPCNode {
       }
       updateVersions(list);
     }
-    onMCCResponse(from, bundle.tid, success);
+    onMCCResponse(from, bundle.tid, success, securityResponse);
   }
 
 	/**
@@ -530,28 +569,202 @@ public abstract class MCCNode extends RPCNode {
     RPCBundle responseBundle = null;
     if(committedTids.contains(transaction.tid)) {
       // DUPLICATE REQUEST, ALREADY COMMITTED ON THE SERVER
-      responseBundle = RPCBundle.newResponseBundle(new ArrayList<MCCFileData>(), transaction, true);
+      responseBundle = RPCBundle.newResponseBundle(new ArrayList<MCCFileData>(), transaction, true, new Pair<Boolean,byte[]>(true,null));
 
     } else {
       // verify that the filedataCheck is up-to-version
       List<MCCFileData> filedataUpdate = checkVersions(filedataCheck, transaction);
+      Pair<Boolean,byte[]> securityResponse = checkSecurity(transaction, from, filedataUpdate.isEmpty());
 
-      if(filedataUpdate.isEmpty()) {
+      if(filedataUpdate.isEmpty() && securityResponse.a) {
         // UP-TO-VERSION!  COMMIT THAT SUCKA
         System.out.println("****************IN ON MCC REQUEST**************");
         System.out.println(addr);
         System.out.println(transaction);
         commitTransaction(transaction);
-        responseBundle = RPCBundle.newResponseBundle(filedataUpdate, transaction, true);
-
+              
+        responseBundle = RPCBundle.newResponseBundle(filedataUpdate, transaction, true, securityResponse);
       } else {
         // NO GOOD!  TOO LATE!  get them the new version data
-        responseBundle = RPCBundle.newResponseBundle(filedataUpdate, transaction, false);
+    	
+        responseBundle = RPCBundle.newResponseBundle(filedataUpdate, transaction, false, securityResponse);
       }
     }
 
     RPCSendResponse(from, responseBundle);
   }
+
+  	/**
+  	 * Returns true iff. the operations in the transaction are allowed given the security credentials
+  	 * sent along with it, and our present security model.  Returns false otherwise.
+  	 * Return value is a pair with the first being the security check flag, and the second being a 
+  	 * 	return authorization token, where applicable.
+  	 * @param transaction - the transaction, which includes the security credentials.
+  	 * 
+  	 */
+	private Pair<Boolean,byte[]> checkSecurity(NFSTransaction transaction, int from, boolean willCommit) {
+		//if this is a login transaction, the security credential is a username|password, otherwise its
+		// an authentication token.
+		byte[] credential = transaction.securityCredential;
+		
+		//if this is a login, the credential does not start with a null character
+		//if it is not a login, it will be an authentication token or null.  An 
+		// authentication token starts with a null byte so it is easy to identify.
+		if(credential != null && credential[0]!=0){
+			String loginCredential = new String(credential);
+			String[] loginPair = loginCredential.split("|");
+			Pair<byte[],byte[]> userCredential = this.userCredentials.get(loginPair[0]);
+			
+			//now we hash the password|salt and make sure it matches our store
+			byte[] computedHash = Utility.hashBytes(loginPair[1],userCredential.a);
+			if(computedHash.equals(userCredential.b)){
+				System.out.println("Server says:_________________login credentials good.");
+				
+				//now we generate a new token
+				String clearToken = Integer.toString(from) + CREDENTIAL_DELIMITER + loginPair[0];
+				byte[] newTokenRaw = Utility.AESEncrypt(clearToken.getBytes(), this.secretKey);
+				byte[] newToken = new byte[newTokenRaw.length + 1];
+				
+				//...and make sure it starts with a \0
+				newToken[0] = 0;
+				System.arraycopy(newTokenRaw,0,newToken,1,newTokenRaw.length);
+				
+				return new Pair<Boolean,byte[]>(true,newToken);
+			}
+			else{
+				System.out.println("Server says:_________________login credentials bad.");
+				return new Pair<Boolean,byte[]>(false,null);
+			}
+		}
+		//else do a security check, using the token if it exists and as necessary
+		else{		
+			//first thing: decrypt the token, if it exists
+			//any token will be rejected if malformed.  Only null tokens ignored.
+			int tokenAddress = -1;
+			String currentUser = "";
+			if(credential!=null){
+				byte[] nullStripped = new byte[credential.length-1];
+				System.arraycopy(credential, 1, nullStripped, 0, credential.length-1);
+				byte[] decrypted = Utility.AESDecrypt(nullStripped, this.secretKey);
+				
+				//bad decryption
+				if(decrypted==null) new Pair<Boolean,byte[]>(false,null);
+				
+				String[] token = (new String(decrypted)).split(CREDENTIAL_DELIMITER);
+				
+				//bad token contents / not formatted or corrupted
+				if(token==null || token.length!=2) new Pair<Boolean,byte[]>(false,null);
+				
+				tokenAddress = Integer.parseInt(token[0]);
+				currentUser = token[1];
+				
+				//from the wrong node; probably a break-in attempt with stolen token from some other node!
+				if(tokenAddress != from) return new Pair<Boolean,byte[]>(false,null);
+			}
+			
+			//now lets verify we are authorized to do these transactions
+			for(NFSTransaction.NFSOperation op : transaction.ops){
+				 switch (op.opType) {
+				 	//can only touch files in the user space
+		            case TOUCHFILE:
+		            	if(!op.filename.endsWith("_followers.txt") && !op.filename.endsWith("_stream.txt")){
+		            		return new Pair<Boolean,byte[]>(false,null);
+		            	}
+		                break;
+		            //only create user command uses this, so it is highly restricted use.
+		            // may not be logged in at this point, so will not involve token use.
+		            // will have already been rejected if the file exists, so only need to check it is
+		            //	a create user type of command.
+		            case CREATEFILE:
+		            	if(!op.filename.endsWith("_followers.txt")){
+		            		return new Pair<Boolean,byte[]>(false,null);
+		            	}
+		            	
+		            	//else if we are going to commit it, lets create the user credential stuff now
+		            	if(willCommit){
+							try {
+			            		//create salt
+			            		KeyGenerator kg;
+								kg = KeyGenerator.getInstance("AES");
+								SecretKey salt = kg.generateKey();
+			        			byte[] saltBytes = salt.getEncoded();
+			        			
+			        			//get username and password from the transaction
+			        			String[] userPass = op.dataline.split("|");
+			        			
+			        			//hash the key
+			        			byte[] keyHash = Utility.hashBytes(userPass[1],saltBytes);
+			        			
+			        			//store in local structure
+			        			this.userCredentials.put(userPass[0], new Pair<byte[],byte[]>(saltBytes,keyHash));
+			        			
+			        			//write to keystore file
+			        			Pair<Integer,Boolean> versionAndDeleted = fileVersions.get(KEYSTORE_FILENAME);
+			                  	
+			        			int newVersion = Math.max(versionAndDeleted.a, 0) + 1;
+			        			
+			                    System.out.println("Updating keystore to version: " + newVersion);
+			                    fileVersions.put(KEYSTORE_FILENAME, new Pair<Integer,Boolean>(newVersion, false));
+			                    String newVersionedFile = getVersionedFilename(KEYSTORE_FILENAME);
+
+			                    String outputString = userPass[0] + CREDENTIAL_DELIMITER + Utility.bytesToHexString(saltBytes) + CREDENTIAL_DELIMITER + Utility.bytesToHexString(keyHash);
+			                    nfsService.append(newVersionedFile, outputString);
+			                    writeMetafile();
+			        			
+							} catch (NoSuchAlgorithmException e) {
+								e.printStackTrace();
+								return new Pair<Boolean,byte[]>(false,null);
+							} catch (IOException e) {
+								e.printStackTrace();
+								return new Pair<Boolean,byte[]>(false,null);
+							}
+		            	}
+		            	break;
+		            //if it is a followers file, you can append only yourself to it
+		            //if it is a stream file, you can append only if that stream's user is in your followers
+		            case APPENDLINE:
+		            	if(op.filename.endsWith("_followers.txt")){
+		            		if(op.dataline!=currentUser) return new Pair<Boolean,byte[]>(false,null);
+		            	}
+		            	else if(op.filename.endsWith("_stream.txt")){
+		            		List<String> followers;
+							try {
+								followers = read(currentUser + "_followers.txt");
+							} catch (IOException e) {
+								return new Pair<Boolean,byte[]>(false,null);
+							}
+		        			
+		        			if (followers != null) {
+		        				boolean matchFound = false;
+		        				for (String follower : followers) {
+		        					if(follower == op.dataline) matchFound = true;
+		        				}
+		        				if(!matchFound) return new Pair<Boolean,byte[]>(false,null);
+		        			}
+		        			else return new Pair<Boolean,byte[]>(false,null);
+		            	}
+		            	else return new Pair<Boolean,byte[]>(false,null);
+		            	break;
+		            //Again - very restricted.  We only use this to clear your twitter stream, so that is
+		            // all you can do with this.
+		            case DELETEFILE:
+		            	if(op.filename != currentUser + "_stream.txt") return new Pair<Boolean,byte[]>(false,null);
+		            	break;
+		            //Two valid cases:
+		            //1. Delete yourself from a followers file
+		            //2. Delete any line from your followers
+		            case DELETELINE:
+		            	if (op.filename.endsWith("_followers.txt") && op.filename != currentUser+"_followers.txt"){
+		            		if(op.dataline != currentUser) return new Pair<Boolean,byte[]>(false,null);
+		            	}
+		            	break;
+				 }
+
+			}
+		}
+		
+		return new Pair<Boolean,byte[]>(true,null);
+	}
 
 	/**
 	 * Method that is called by the MCC layer when a response is received
@@ -566,7 +779,7 @@ public abstract class MCCNode extends RPCNode {
 	 *            True if the specified transaction was successful
    *
 	 */
-  public abstract void onMCCResponse(Integer from, int tid, boolean success);
+  public abstract void onMCCResponse(Integer from, int tid, boolean success, Pair<Boolean,byte[]> securityResponse);
 
 
 
