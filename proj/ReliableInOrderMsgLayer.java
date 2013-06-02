@@ -70,7 +70,7 @@ public class ReliableInOrderMsgLayer {
 	    		System.out.print((char)rp.getPayload()[i]);
 	    	}
 			System.out.println("length: " + new String(rp.getPayload()).length());
-			RPCNode.MessageType mt = RPCNode.extractMessageType(rp.getPayload());
+			RPCNode.RPCCallType mt = RPCNode.extractBundleType(rp.getPayload());
 
 			//if we have a matching ID, then we crashed between deleting the recv log, and making the send log for the response.
 			//We have a send log, but the recv log hasn't been deleted.  So we do that now, and don't add this to the responseMap.
@@ -85,7 +85,7 @@ public class ReliableInOrderMsgLayer {
 			}
 			
 			if(!alreadyResponded){
-				if(mt==RPCNode.MessageType.REQUEST) responseMap.put(RPCNode.extractMessageId(rp.getPayload()), new SeqLogEntries.AddrSeqPair(mle.addr(), mle.seqNum()));
+				if(mt==RPCNode.RPCCallType.REQUEST) responseMap.put(RPCNode.extractMessageId(rp.getPayload()), new SeqLogEntries.AddrSeqPair(mle.addr(), mle.seqNum()));
 				else responseRecvdMap.put(RPCNode.extractMessageId(rp.getPayload()), new SeqLogEntries.AddrSeqPair(mle.addr(), mle.seqNum()));
 			}
 			
@@ -216,8 +216,8 @@ public class ReliableInOrderMsgLayer {
 			return;
 		}
 
-		RPCNode.MessageType mt = RPCNode.extractMessageType(riopkt.getPayload());
-		if(mt == RPCNode.MessageType.REQUEST) responseMap.put(RPCNode.extractMessageId(riopkt.getPayload()), new SeqLogEntries.AddrSeqPair(from, riopkt.getSeqNum()));
+		RPCNode.RPCCallType mt = RPCNode.extractBundleType(riopkt.getPayload());
+		if(mt == RPCNode.RPCCallType.REQUEST) responseMap.put(RPCNode.extractMessageId(riopkt.getPayload()), new SeqLogEntries.AddrSeqPair(from, riopkt.getSeqNum()));
 		else responseRecvdMap.put(RPCNode.extractMessageId(riopkt.getPayload()), new SeqLogEntries.AddrSeqPair(from, riopkt.getSeqNum()));
 		
 		boolean alreadyLogged = this.msl.logMsg(from, riopkt.getPayload(), riopkt.getSeqNum(), MsgLogger.RECV);		

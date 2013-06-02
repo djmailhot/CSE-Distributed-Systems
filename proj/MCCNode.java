@@ -2,6 +2,7 @@ import edu.washington.cs.cse490h.lib.Utility;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
@@ -451,8 +452,8 @@ public abstract class MCCNode extends RPCNode {
     Log.i(TAG, String.format("Commit submission to %d for transaction %s",
                             destAddr, transaction));
     List<MCCFileData> filedataCheck = getCurrentVersions();
-    RPCBundle bundle = RPCBundle.newRequestBundle(filedataCheck, transaction);
-    RPCSendRequest(destAddr, bundle);
+    MCCMsg msg = new MCCMsg(filedataCheck, transaction);
+    RPCSendCommitRequest(destAddr, msg);
   }
 
   private List<MCCFileData> getCurrentVersions() {
@@ -469,40 +470,41 @@ public abstract class MCCNode extends RPCNode {
 	//----------------------------------------------------------------------------
 
   @Override
-  public void onRPCRequest(Integer from, RPCBundle bundle) {
-    Log.i(TAG, String.format("From node %d, received %s", from, bundle));
+  public void onRPCCommitRequest(Integer from, RPCMsg message) {
+    MCCMsg msg = (MCCMsg)message;
+    Log.i(TAG, String.format("From node %d, received request %s", from, msg));
     List<MCCFileData> list = new ArrayList<MCCFileData>();
-    for (MCCFileData file : bundle.filearray) {
+    for (MCCFileData file : msg.filearray) {
     	list.add(file);
     }
-    onMCCRequest(from, list, bundle.transaction);
+    onMCCRequest(from, list, msg.transaction);
   }
 
   @Override
-  public void onRPCResponse(Integer from, RPCBundle bundle) {
-    Log.i(TAG, String.format("From node %d, received %s", from, bundle));
-    boolean success = bundle.success;
+  public void onRPCCommitResponse(Integer from, RPCMsg message) {
+    MCCMsg msg = (MCCMsg)message;
+    Log.i(TAG, String.format("From node %d, received response %s", from, msg));
+    boolean success = msg.success;
     if(success) {
       // if successful, apply updates locally
 	    	System.out.println("****************IN ON RPC RESPONSE**************");
 	    	System.out.println(addr);
-	    	System.out.println(bundle.transaction);
-	      success = success && commitTransaction(bundle.transaction);
+	    	System.out.println(msg.transaction);
+	      success = success && commitTransaction(msg.transaction);
     } else {
       // update the cache to the most recent versions
       List<MCCFileData> list = new ArrayList<MCCFileData>();
-      for (MCCFileData file : bundle.filearray) {
+      for (MCCFileData file : msg.filearray) {
       	list.add(file);
       }
       updateVersions(list);
     }
-    onMCCResponse(from, bundle.tid, success);
+    onMCCResponse(from, msg.transaction.tid, success);
   }
 
 	/**
-	 * Method that is called by the RPC layer when an RPC Request bundle is 
-   * received.
-   * Request bundles are MCC invocations on a remote node.
+	 * Method that is called when an MCC Request message is received.
+   * Request messages are MCC invocations on a remote node.
 	 * 
 	 * @param from
 	 *            The address from which the message was received
@@ -514,10 +516,10 @@ public abstract class MCCNode extends RPCNode {
 	 */
   public void onMCCRequest(Integer from, List<MCCFileData> filedataCheck, 
                            NFSTransaction transaction) {
-    RPCBundle responseBundle = null;
+    MCCMsg responseMsg = null;
     if(committedTids.contains(transaction.tid)) {
       // DUPLICATE REQUEST, ALREADY COMMITTED ON THE SERVER
-      responseBundle = RPCBundle.newResponseBundle(new ArrayList<MCCFileData>(), transaction, true);
+      responseMsg = new MCCMsg(new ArrayList<MCCFileData>(), transaction, true);
 
     } else {
       // verify that the filedataCheck is up-to-version
@@ -529,15 +531,15 @@ public abstract class MCCNode extends RPCNode {
         System.out.println(addr);
         System.out.println(transaction);
         commitTransaction(transaction);
-        responseBundle = RPCBundle.newResponseBundle(filedataUpdate, transaction, true);
+        responseMsg = new MCCMsg(filedataUpdate, transaction, true);
 
       } else {
         // NO GOOD!  TOO LATE!  get them the new version data
-        responseBundle = RPCBundle.newResponseBundle(filedataUpdate, transaction, false);
+        responseMsg = new MCCMsg(filedataUpdate, transaction, false);
       }
     }
 
-    RPCSendResponse(from, responseBundle);
+    RPCSendCommitResponse(from, responseMsg);
   }
 
 	/**
@@ -557,4 +559,71 @@ public abstract class MCCNode extends RPCNode {
 
 
 
+  /**
+   * MCC message to send over RPC
+   */
+  protected static class MCCMsg implements RPCMsg {
+    public static final long serialVersionUID = 0L;
+
+    public final NFSTransaction transaction;
+    public final MCCFileData[] filearray;
+    public final boolean success;
+
+    /**
+     * Wrapper around a file version list and a filesystem transaction.
+     *
+     * @param success
+     *            Whether the message represents a successful request
+     * @param filelist
+     *            A list of files and version numbers with contents.
+     * @param transaction
+     *            The filesystem transaction to include.
+     */
+    MCCMsg(List<MCCFileData> filelist, 
+              NFSTransaction transaction, boolean success) {
+      this.filearray = filelist.toArray(new MCCFileData[filelist.size()]);
+      this.transaction = transaction;
+      this.success = success;
+    }
+
+    /**
+     * Wrapper around a file version list and a filesystem transaction.
+     *
+     * @param filelist
+     *            A list of files and version numbers with contents.
+     * @param transaction
+     *            The filesystem transaction to include.
+     */
+    public MCCMsg(List<MCCFileData> filelist, NFSTransaction transaction) {
+      this(filelist, transaction, false);
+    }
+
+    public int getId() {
+      return transaction.tid;
+    }
+
+    public String toString() {
+      return String.format("MCCMsg{%d, success? %s}", transaction.tid, success);
+    }
+  }
+
+  protected static class MCCFileData implements Serializable {
+    public static final long serialVersionUID = 0L;
+
+    public final int versionNum;
+    public final String filename;
+    public final String contents;
+    public final boolean deleted;
+
+    public MCCFileData(int versionNum, String filename, String contents, boolean deleted) {
+      this.versionNum = versionNum;
+      this.filename = filename;
+      this.contents = contents;
+      this.deleted = deleted;
+    }
+
+    public String toString() {
+      return String.format("MCCFileData{%s, %d, %s}", filename, versionNum, deleted);
+    }
+  }
 }

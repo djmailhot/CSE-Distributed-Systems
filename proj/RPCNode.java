@@ -26,56 +26,37 @@ public abstract class RPCNode extends RIONode {
   private static final Logger LOG = Logger.getLogger(RPCNode.class.getName());
 
   /**
-   *
+   * Defines an interface for a message meant to be sent over RPC.
    */
   public interface RPCMsg extends Serializable {
-    public MessageType getMsgType();
-  }
+    /**
+     * Returns an unique id that is shared between Request and Response
+     * messages.
+     */
+    public int getId();
 
-  /**
-   * Enum to specify the RPC message type.
-   */
-  public static enum MessageType {
-    REQUEST, RESPONSE;
-
-    public static MessageType fromInt(int value) {
-      if(value == REQUEST.ordinal()) { return REQUEST; }
-      else if(value == RESPONSE.ordinal()) { return RESPONSE; }
-      else { return null; }
-    }
   }
   
   /**
-   * Enum to specify the Paxos message type.
+   * Enum to specify the type of message being sent over RPC.
    */
-  private static enum PaxosType {
-    PROPOSE, ACCEPT, REJECT;
+  protected static enum RPCMsgType {
+    COMMIT, PAXOS;
 
-    public static PaxosType fromInt(int value) {
-      if(value == PROPOSE.ordinal()) { return PROPOSE; }
-      else if(value == ACCEPT.ordinal()) { return ACCEPT; }
-      else if(value == REJECT.ordinal()) { return REJECT; }
+    public static RPCMsgType fromInt(int value) {
+      if(value == COMMIT.ordinal()) { return COMMIT; }
+      else if(value == PAXOS.ordinal()) { return PAXOS; }
       else { return null; }
     }
   }
 
-  private static class PaxosMsg {
-    private final PaxosType pType;
-    public PaxosMsg(PaxosType pType) {
-      this.pType = pType;
-    }
-  }
-
-
-  // queue of RPC bundles that must be passed to the 
-  private final DeQue<PaxosMsg> msgQueue;
 
   public RPCNode() {
     super();
   }
 
   public void start() {
-    msgQueue = new DeQue<PaxosMsg>();
+    super.start();
   }
 
 	//----------------------------------------------------------------------------
@@ -83,42 +64,63 @@ public abstract class RPCNode extends RIONode {
 	//----------------------------------------------------------------------------
 
 	/**
-	 * Send a RPC call request over to a remote node.
+	 * Send a transaction commit request over to a remote node.
 	 * Includes a file version list and a filesystem transaction.
 	 * 
 	 * @param destAddr
 	 *            The address to send to
-   * @param filelist
-   *            A list of files and version numbers.
-   *            The file contents are not used.
-	 * @param transaction
-	 *            The filesystem transaction to send.
-   *            If null, won't send any transaction.
+   * @param bundle
+   *            The RPCCallBundle to send over, containing
+   *            a list of files and version numbers
+	 *            and the filesystem transaction to commit.
 	 */
-  public void RPCSendRequest(int destAddr, RPCBundle bundle) {
-    // TODO wrap request messages in a Paxos bundle
-
-    // put the bundle in a queue
-    // use paxos to propose this bundle for submission
-    // while not timed out:
-      // if recieved majority of accepts
-      RIOSend(destAddr, Protocol.DATA, RPCBundle.serialize(bundle));
-
-    // put back into queue and retry after an exponential backoff period
+  public void RPCSendCommitRequest(int destAddr, RPCMsg msg) {
+    RPCCallBundle bundle = new RPCCallBundle(msg.getId(), RPCCallType.REQUEST,
+                                             RPCMsgType.COMMIT, msg);
+    RIOSend(destAddr, Protocol.DATA, RPCCallBundle.serialize(bundle));
   }
 
 	/**
-	 * Send a RPC call response over to a remote node.
+	 * Send a transaction commit response over to a remote node.
 	 * Includes a file version list.
 	 * 
 	 * @param destAddr
 	 *            The address to send to
-   * @param filelist
-   *            A list of files and version numbers.
-   *            They must also contain file contents.
+   * @param bundle
+   *            The RPCCallBundle to send over, containing
+   *            a list of files and version numbers
+	 *            and the filesystem transaction to commit.
 	 */
-  public void RPCSendResponse(int destAddr, RPCBundle bundle) {
-    RIOSend(destAddr, Protocol.DATA, RPCBundle.serialize(bundle));
+  public void RPCSendCommitResponse(int destAddr, RPCMsg msg) {
+    RPCCallBundle bundle = new RPCCallBundle(msg.getId(), RPCCallType.RESPONSE,
+                                             RPCMsgType.COMMIT, msg);
+    RIOSend(destAddr, Protocol.DATA, RPCCallBundle.serialize(bundle));
+  }
+
+	/**
+	 * Send a Paxos request over to a remote node.
+	 * Includes a file version list and a filesystem transaction.
+	 * 
+	 * @param destAddr
+	 *            The address to send to
+	 */
+  private void RPCSendPaxosRequest(int destAddr, RPCMsg msg) {
+    RPCCallBundle bundle = new RPCCallBundle(msg.getId(), RPCCallType.REQUEST,
+                                             RPCMsgType.PAXOS, msg);
+    RIOSend(destAddr, Protocol.DATA, RPCCallBundle.serialize(bundle));
+  }
+
+	/**
+	 * Send a Paxos call response over to a remote node.
+	 * Includes a file version list.
+	 * 
+	 * @param destAddr
+	 *            The address to send to
+	 */
+  private void RPCSendPaxosResponse(int destAddr, RPCMsg msg) {
+    RPCCallBundle bundle = new RPCCallBundle(msg.getId(), RPCCallType.RESPONSE,
+                                             RPCMsgType.PAXOS, msg);
+    RIOSend(destAddr, Protocol.DATA, RPCCallBundle.serialize(bundle));
   }
 
 	//----------------------------------------------------------------------------
@@ -139,29 +141,54 @@ public abstract class RPCNode extends RIONode {
 	public void onRIOReceive(Integer from, int protocol, byte[] msg) {
     if(protocol == Protocol.DATA) {
       try {
-        RPCBundle bundle = RPCBundle.deserialize(msg);
-        MessageType messageType = bundle.type;
-        switch (messageType) {
-          case REQUEST:
-          	// TODO: Here, we hook into Paxos?
-          	// Perhaps we should add PAXOS_REQUEST and PAXOS_RESPONSE to messageType?
-          	// That way, we know the requests here come from a client machine only
-            onRPCRequest(from, bundle);
-            break;
-          case RESPONSE:
-          	// TODO: Here, hook into Paxos?
-            onRPCResponse(from, bundle);
-            break;
+        RPCCallBundle bundle = RPCCallBundle.deserialize(msg);
+        RPCMsgType msgType = bundle.msgType;
+        switch (msgType) {
+          case COMMIT:
+            onCommitMsgReceive(from, bundle);
+          case PAXOS:
+            onPaxosMsgReceive(from, bundle);
           default:
             LOG.warning("Received invalid message type");
         }
       }
       catch(IllegalArgumentException e) {
-        LOG.warning("Data message could not be deserialized into valid RPCBundle");
+        LOG.warning("Data message could not be deserialized into valid RPCCallBundle");
       }
     } else {
       // no idea what to do
     }
+  }
+
+  private void onCommitMsgReceive(Integer from, RPCCallBundle bundle) {
+    // we simply pass the commit message up a layer
+    RPCCallType callType = bundle.callType;
+    switch (callType) {
+      case REQUEST:
+        onRPCCommitRequest(from, bundle.msg);
+        break;
+      case RESPONSE:
+        onRPCCommitResponse(from, bundle.msg);
+        break;
+      default:
+        LOG.warning("Received invalid message type");
+    }
+  }
+
+  private void onPaxosMsgReceive(Integer from, RPCCallBundle bundle) {
+      RPCCallType callType = bundle.callType;
+      switch (callType) {
+        case REQUEST:
+          // TODO: Here, we hook into Paxos?
+          // Perhaps we should add PAXOS_REQUEST and PAXOS_RESPONSE to messageType?
+          // That way, we know the requests here come from a client machine only
+          break;
+        case RESPONSE:
+          // TODO: Here, hook into Paxos?
+          break;
+        default:
+          LOG.warning("Received invalid message type");
+      }
   }
 
   /**
@@ -169,30 +196,33 @@ public abstract class RPCNode extends RIONode {
    * @return an int, the transaction id of this message
    */
   public static int extractMessageId(byte[] msg) {
-    RPCBundle bundle = RPCBundle.deserialize(msg);
-    return bundle.tid;
+    RPCCallBundle bundle = RPCCallBundle.deserialize(msg);
+    return bundle.id;
   }
 
   /**
    * Returns the message type of the specified message.
-   * @return a MessageType describing the type of message received
+   * @return a RPCCallType describing the type of message received
    */
-  public static MessageType extractMessageType(byte[] msg) {
-    RPCBundle bundle = RPCBundle.deserialize(msg);
-    return bundle.type;
+  public static RPCCallType extractBundleType(byte[] msg) {
+    RPCCallBundle bundle = RPCCallBundle.deserialize(msg);
+    return bundle.callType;
   }
   
   //-------------------- Paxos Methods Begin -------------------------------------------------------//
   
+  // send of proposal
   private void sendPrepareRequest(/* args*/) {
   	
   }  
   
+  // recieve proposal
   private void receivePrepareRequest(/* args*/) {
   	// Do stuff
   	sendPrepareResponse();
   }
   
+  //
   private void sendPrepareResponse() {
   	
   }
@@ -210,10 +240,12 @@ public abstract class RPCNode extends RIONode {
   	
   }
   
+  // receive the agreed value
   private void sendLearnValueRequest()	 {
   	
   }
   
+  // receive the value
   private void receiveLearnValueResponse() {
   	
   }
@@ -226,10 +258,10 @@ public abstract class RPCNode extends RIONode {
 	 * 
 	 * @param from
 	 *            The address from which the message was received
-   * @param bundle
-   *            The RPCBundle data glob
+   * @param message 
+   *            The RPCMsg data message
 	 */
-  public abstract void onRPCRequest(Integer from, RPCBundle bundle);
+  public abstract void onRPCCommitRequest(Integer from, RPCMsg message);
 
 	/**
 	 * Method that is called by the RPC layer when an RPC Response transaction is 
@@ -238,80 +270,54 @@ public abstract class RPCNode extends RIONode {
 	 * 
 	 * @param from
 	 *            The address from which the message was received
-   * @param bundle
-   *            The RPCBundle data glob
+   * @param message 
+   *            The RPCMsg data message
    *
 	 */
-  public abstract void onRPCResponse(Integer from, RPCBundle bundle);
+  public abstract void onRPCCommitResponse(Integer from, RPCMsg message);
+
+  /**
+   * Enum to specify the RPC message type.
+   */
+  public static enum RPCCallType {
+    REQUEST, RESPONSE;
+
+    public static RPCCallType fromInt(int value) {
+      if(value == REQUEST.ordinal()) { return REQUEST; }
+      else if(value == RESPONSE.ordinal()) { return RESPONSE; }
+      else { return null; }
+    }
+  }
 
   /**
    * Some sweet ass class.
    */
-  public static class RPCBundle implements Serializable {
+  public static class RPCCallBundle implements Serializable {
     public static final long serialVersionUID = 0L;
 
-    public final MessageType type;  // request or response
-    public final int tid;  // transaction id
-    public final boolean success;
-    public final NFSTransaction transaction;
-    //public final List<MCCFileData> filelist;
-    public final MCCFileData[] filearray;
+    public final int id;  // message id
+    public final RPCCallType callType;  // request or response
+    public final RPCMsgType msgType;  // the type of the message
+    public final RPCMsg msg;  // the message to send
 
     /**
      * Wrapper around a file version list and a filesystem transaction.
      *
      * @param type
      *            Whether this is a REQUEST or RESPONSE RPC message
-     * @param success
-     *            Whether the bundle represents a successful request
-     * @param filelist
-     *            A list of files and version numbers with contents.
-     * @param transaction
-     *            The filesystem transaction to include.
+     * @param id
+     *            The unique id of this bundle
+     * @param msg
+     *            The RPCMsg to send
      */
-    RPCBundle(MessageType type, boolean success, 
-                     List<MCCFileData> filelist, NFSTransaction transaction) {
-      this.type = type;
-      this.success = success;
-      //this.filelist = filelist;
-      this.filearray = new MCCFileData[filelist.size()]; //filelist.toArray();
-      for (int i = 0; i < filelist.size(); i++) {
-      	this.filearray[i] = filelist.get(i);
-      }
-      this.transaction = transaction;
-      this.tid = transaction.tid;
+    RPCCallBundle(int id, RPCCallType callType, RPCMsgType msgType, RPCMsg msg) {
+      this.id = id;
+      this.callType = callType;
+      this.msgType = msgType;
+      this.msg = msg;
     }
 
-    /**
-     * Specifically constructs a request bundle.
-     *
-     * @param filelist
-     *            A list of files and version numbers.
-     * @param transaction
-     *            The filesystem transaction to include.
-     */
-    public static RPCBundle newRequestBundle(List<MCCFileData> filelist,
-                                             NFSTransaction transaction) {
-      return new RPCBundle(MessageType.REQUEST, false, filelist, transaction);
-    }
-  
-    /**
-     * Specifically constructs a response bundle.
-     *
-     * @param filelist
-     *            A list of files and version numbers with contents.
-     * @param transaction
-     *            The filesystem transaction to include.
-     * @param success
-     *            Whether the bundle represents a successful request
-     */
-    public static RPCBundle newResponseBundle(List<MCCFileData> filelist,
-                                              NFSTransaction transaction,
-                                              boolean success) {
-      return new RPCBundle(MessageType.RESPONSE, success, filelist, transaction);
-    }
-    
-    public static byte[] serialize(RPCBundle bundle) {
+    public static byte[] serialize(RPCCallBundle bundle) {
     	ByteArrayOutputStream bos = new ByteArrayOutputStream();
     	ObjectOutput out = null;
     	try {
@@ -334,13 +340,13 @@ public abstract class RPCNode extends RIONode {
     	return null;
     }
     
-    public static RPCBundle deserialize(byte[] bytes) {
+    public static RPCCallBundle deserialize(byte[] bytes) {
     	ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
     	ObjectInput in = null;
     	try {
     	  in = new ObjectInputStream(bis);
     	  Object o = in.readObject(); 
-    	  RPCBundle bundle = (RPCBundle) o;
+    	  RPCCallBundle bundle = (RPCCallBundle) o;
     	  return bundle;
     	} catch (IOException e) {
 				// TODO Auto-generated catch block
@@ -361,15 +367,82 @@ public abstract class RPCNode extends RIONode {
     }
     
     public String toString() {
-      if(type == MessageType.REQUEST) {
-        return String.format("RPCBundle{REQUEST, %d}", tid);
-      } else if(type == MessageType.RESPONSE) {
-        return String.format("RPCBundle{RESPONSE, %d, Success? %s}",
-                              tid, success);
-      } else {
-        return "RPCBundle{ invalid state }";
+      switch(callType) {
+        case REQUEST:
+          return String.format("RPCCallBundle{REQUEST, %d, %s}", id, msg);
+        case RESPONSE:
+          return String.format("RPCCallBundle{RESPONSE, %d, %s}", id, msg);
+        default:
+          return "RPCCallBundle{ invalid state }";
       }
     }
   }
 
+
+
+
+
+
+
+
+  private static class PaxosManager {
+
+    // Set of other servers
+
+    // num servers = set.size() + 1  // so we include ourselves
+
+
+
+    // Most recent proposal number for this round
+
+    // Map of round numbers to chosen proposal
+
+    // CurrProposal number counter
+
+    // PREPARED proposal (but not chosen yet, waiting for ACCEPT request)
+
+    // The last round for which the proposal was processed
+
+    // Map of proposal to client who initiated
+
+
+    /**
+     * Enum to specify the Paxos message type.
+     */
+    private static enum PaxosMsgType {
+      PREPARE, ACCEPT, REJECT;
+
+      public static PaxosMsgType fromInt(int value) {
+        if(value == PREPARE.ordinal()) { return PREPARE; }
+        else if(value == ACCEPT.ordinal()) { return ACCEPT; }
+        else if(value == REJECT.ordinal()) { return REJECT; }
+        else { return null; }
+      }
+    }
+
+    private static class PaxosMsg implements RPCMsg {
+      // msg type
+      private final PaxosMsgType pType;
+      // round number
+      // THING
+      // Paxos proposal
+      // THING
+      public PaxosMsg(PaxosMsgType pType) {
+        this.pType = pType;
+      }
+      public int getId() {
+        return 0;
+      }
+    }
+
+    private static class PaxosProposal {
+      // origin server number
+      // THING
+      // proposal number:  proposalnum = counter * numservers + uniqueserverid
+      // THING
+      // transaction value
+      // THING
+    }
+
+  }
 }
