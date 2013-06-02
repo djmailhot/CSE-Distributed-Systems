@@ -27,6 +27,10 @@ import plume.Pair;
 public abstract class RPCNode extends RIONode {
   private static final Logger LOG = Logger.getLogger(RPCNode.class.getName());
 
+	//----------------------------------------------------------------------------
+	// RPC Layer public interfaces
+	//----------------------------------------------------------------------------
+
   /**
    * Defines an interface for a message meant to be sent over RPC.
    */
@@ -38,20 +42,12 @@ public abstract class RPCNode extends RIONode {
     public int getId();
 
   }
-  
-  /**
-   * Enum to specify the type of message being sent over RPC.
-   */
-  protected static enum RPCMsgType {
-    COMMIT, PAXOS;
 
-    public static RPCMsgType fromInt(int value) {
-      if(value == COMMIT.ordinal()) { return COMMIT; }
-      else if(value == PAXOS.ordinal()) { return PAXOS; }
-      else { return null; }
-    }
-  }
+	//----------------------------------------------------------------------------
+	// startup routines
+	//----------------------------------------------------------------------------
 
+  private PaxosManager paxos;
 
   public RPCNode() {
     super();
@@ -59,6 +55,7 @@ public abstract class RPCNode extends RIONode {
 
   public void start() {
     super.start();
+    PaxosManager paxos = this.new PaxosManager();
   }
 
 	//----------------------------------------------------------------------------
@@ -162,14 +159,30 @@ public abstract class RPCNode extends RIONode {
     }
   }
 
+	/**
+	 * Called when a new Commit message is recieved.
+	 * 
+	 * @param from
+	 *            The address from which the message was received
+	 * @param bundle
+	 *            The RPCCallBundle associated with the RPC call
+	 */
   private void onCommitMsgReceive(Integer from, RPCCallBundle bundle) {
     // we simply pass the commit message up a layer
     RPCCallType callType = bundle.callType;
     switch (callType) {
       case REQUEST:
-        onRPCCommitRequest(from, bundle.msg);
+        // This is a request to commit
+
+        // onRPCCommitRequest(from, bundle.msg);
+        // NOTE: Nope, not going to call this method here.  
+        // Instead, the PaxosManager will first use the paxos voting system
+        // to determine when it is appropriate to pass the commit request 
+        // up a layer .
+        paxos.onUpdateAttempt(from, bundle.msg);
         break;
       case RESPONSE:
+        // This is a response to a commit attempt
         onRPCCommitResponse(from, bundle.msg);
         break;
       default:
@@ -177,16 +190,22 @@ public abstract class RPCNode extends RIONode {
     }
   }
 
+	/**
+	 * Called when a new Paxos message is recieved.
+	 * 
+	 * @param from
+	 *            The address from which the message was received
+	 * @param bundle
+	 *            The RPCCallBundle associated with the RPC call
+	 */
   private void onPaxosMsgReceive(Integer from, RPCCallBundle bundle) {
       RPCCallType callType = bundle.callType;
       switch (callType) {
         case REQUEST:
-          // TODO: Here, we hook into Paxos?
-          // Perhaps we should add PAXOS_REQUEST and PAXOS_RESPONSE to messageType?
-          // That way, we know the requests here come from a client machine only
+          paxos.onRequest(from, bundle.msg);
           break;
         case RESPONSE:
-          // TODO: Here, hook into Paxos?
+          paxos.onResponse(from, bundle.msg);
           break;
         default:
           LOG.warning("Received invalid message type");
@@ -211,47 +230,6 @@ public abstract class RPCNode extends RIONode {
     return bundle.callType;
   }
   
-  //-------------------- Paxos Methods Begin -------------------------------------------------------//
-  
-  // send of proposal
-  private void sendPrepareRequest(/* args*/) {
-  	
-  }  
-  
-  // recieve proposal
-  private void receivePrepareRequest(/* args*/) {
-  	// Do stuff
-  	sendPrepareResponse();
-  }
-  
-  //
-  private void sendPrepareResponse() {
-  	
-  }
-  
-  private void sendAcceptRequest(/* args */) {
-  	
-  }
-  
-  private void receiveAcceptRequest(/* args */) {
-  	// Do stuff
-  	sendAcceptRepsonse();
-  }
-  
-  private void sendAcceptRepsonse() {
-  	
-  }
-  
-  // receive the agreed value
-  private void sendLearnValueRequest()	 {
-  	
-  }
-  
-  // receive the value
-  private void receiveLearnValueResponse() {
-  	
-  }
-  //-------------------- Paxos Methods End ---------------------------------------------------------//
   
 	/**
 	 * Method that is called by the RPC layer when an RPC Request transaction is 
@@ -278,10 +256,29 @@ public abstract class RPCNode extends RIONode {
 	 */
   public abstract void onRPCCommitResponse(Integer from, RPCMsg message);
 
+
+
+	//----------------------------------------------------------------------------
+	// RPC Layer constructs (a.k.a. nested classes)
+	//----------------------------------------------------------------------------
+
+  /**
+   * Enum to specify the type of message being sent over RPC.
+   */
+  protected static enum RPCMsgType {
+    COMMIT, PAXOS;
+
+    public static RPCMsgType fromInt(int value) {
+      if(value == COMMIT.ordinal()) { return COMMIT; }
+      else if(value == PAXOS.ordinal()) { return PAXOS; }
+      else { return null; }
+    }
+  }
+
   /**
    * Enum to specify the RPC message type.
    */
-  public static enum RPCCallType {
+  protected static enum RPCCallType {
     REQUEST, RESPONSE;
 
     public static RPCCallType fromInt(int value) {
@@ -294,7 +291,7 @@ public abstract class RPCNode extends RIONode {
   /**
    * Some sweet ass class.
    */
-  public static class RPCCallBundle implements Serializable {
+  protected static class RPCCallBundle implements Serializable {
     public static final long serialVersionUID = 0L;
 
     public final int id;  // message id
@@ -381,17 +378,51 @@ public abstract class RPCNode extends RIONode {
   }
 
 
+  //---------------------------------------------------------------------------
+  //---------------------------------------------------------------------------
+  //---------------------------------------------------------------------------
+  //
+  // *fanfare* PAXOS *fanfare*
+  //
+  //---------------------------------------------------------------------------
+  //---------------------------------------------------------------------------
+  //---------------------------------------------------------------------------
 
 
+  /**
+   * The PaxosManager maintains the PAXOS voting state machine.
+   *
+   * NOTE: Important to make this non-static such that the manager is able
+   * to use resources of the outer RPCNode class instance.
+   */
+  private class PaxosManager {
+    public static final String TAG = "PaxosManager";
 
-
-
-
-  private static class PaxosManager {
-
-    // Set of other servers
-
-    // num servers = set.size() + 1  // so we include ourselves
+    /**
+     * Very useful resources to access available from the outer RPCNode class
+     * instance.
+     *
+     * Set<Integer> servers
+     *    The set of all server nodes.
+     *
+     * int addr
+     *    The id number of this node.
+     *
+     * RPCSendPaxosRequest(to, msg)
+     *    Call this to send a Paxos voting request to a specified node.
+     *    (i.e. starting a proposal, send an update to learn)
+     *
+     * RPCSendPaxosResponse(to, msg)
+     *    Call this to send a Paxos voting response to a specified node.
+     *    (i.e. responding to a proposal, send the result of learning an update)
+     *
+     * onRPCCommitRequest(from, msg)
+     *    Call this when this node has verified that an update has been 
+     *    accepted and should be committed to this local node.
+     *    This can be used by both the Proposer when it decides an proposal
+     *    has been accepted, as well as by a Listener when it is told to
+     *    learn an update.
+     */
 
 
 
@@ -401,50 +432,192 @@ public abstract class RPCNode extends RIONode {
 
     // CurrProposal number counter
 
-    // PREPARED proposal (but not chosen yet, waiting for ACCEPT request)
+    // PREPAREd proposal (but not chosen yet, waiting for ACCEPT request)
 
     // The last round for which the proposal was processed
 
     // Map of proposal to client who initiated
 
 
+    PaxosManager() {
+      // TODO: cool stuff, bro
+    }
+
     /**
-     * Enum to specify the Paxos message type.
+     * Called when an update needs to be serializable over this distributed
+     * system.
+     *
+     * Will use the Paxos voting system to ensure this update is ordered
+     * correctly.
+     *
+     * @param from
+     *            The id of the node this update originated from.
+     * @param updateMsg
+     *            The message of the update.
      */
-    private static enum PaxosMsgType {
-      PREPARE, ACCEPT, REJECT;
+    public void onUpdateAttempt(int from, RPCMsg updateMsg) {
+      // add this update message to the queue of messages
 
-      public static PaxosMsgType fromInt(int value) {
-        if(value == PREPARE.ordinal()) { return PREPARE; }
-        else if(value == ACCEPT.ordinal()) { return ACCEPT; }
-        else if(value == REJECT.ordinal()) { return REJECT; }
-        else { return null; }
+      // examples on how to put together a PaxosMsg
+      int proposalNum = 0;
+      int roundNum = 0;
+      PaxosProposal proposal = new PaxosProposal(proposalNum, from, updateMsg);
+      PaxosMsg msg = new PaxosMsg(PaxosMsgType.PREPARE, roundNum, proposal);
+    }
+
+    /**
+     * Called when another Paxos node has submitted a Paxos voting request
+     * to this node.
+     *
+     * @param from
+     *            The id of the node this request originated from.
+     * @param message
+     *            The message of the request.
+     */
+    public void onRequest(int from, RPCMsg message) {
+      PaxosMsg msg = (PaxosMsg)message;
+      PaxosMsgType type = msg.msgType;
+      switch(type) {
+        // TODO: Can rename these if you like
+        case PREPARE:
+        case LEARN:
+        // case ACCEPT: should never get this
+        // case REJECT: should never get this
+        default:
+          Log.w(TAG, "Invalid PaxosMsgType on a request");
       }
     }
 
-    private static class PaxosMsg implements RPCMsg {
-      // msg type
-      private final PaxosMsgType pType;
-      // round number
-      // THING
-      // Paxos proposal
-      // THING
-      public PaxosMsg(PaxosMsgType pType) {
-        this.pType = pType;
-      }
-      public int getId() {
-        return 0;
+    /**
+     * Called when another Paxos node is returning a reply to a Paxos voting
+     * request made by this node.
+     *
+     * @param from
+     *            The id of the node this response originated from.
+     * @param message
+     *            The message of the response.
+     */
+    public void onResponse(int from, RPCMsg message) {
+      PaxosMsg msg = (PaxosMsg)message;
+      PaxosMsgType type = msg.msgType;
+      switch(type) {
+        // TODO: Can rename these if you like
+        // case PREPARE: should never get this
+        // case LEARN: should never get this
+        case ACCEPT:
+        case REJECT:
+        default:
+          Log.w(TAG, "Invalid PaxosMsgType on a response");
       }
     }
 
-    private static class PaxosProposal {
-      // origin server number
-      // THING
-      // proposal number:  proposalnum = counter * numservers + uniqueserverid
-      // THING
-      // transaction value
-      // THING
+    //-------------------- Paxos State Machine --------------------------------
+    
+    // send of proposal
+    private void sendPrepareRequest(/* args*/) {
+      
+    }  
+    
+    // recieve proposal
+    private void receivePrepareRequest(/* args*/) {
+      // Do stuff
+      sendPrepareResponse();
     }
+    
+    //
+    private void sendPrepareResponse() {
+      
+    }
+    
+    private void sendAcceptRequest(/* args */) {
+      
+    }
+    
+    private void receiveAcceptRequest(/* args */) {
+      // Do stuff
+      sendAcceptRepsonse();
+    }
+    
+    private void sendAcceptRepsonse() {
+      
+    }
+    
+    // receive the agreed value
+    private void sendLearnValueRequest()	 {
+      
+    }
+    
+    // receive the value
+    private void receiveLearnValueResponse() {
+      
+    }
+    //-------------------- Paxos Methods End ---------------------------------//
 
   }
+
+  //-------------------------------------------------------------------------
+  // Paxos system constructs
+  //-------------------------------------------------------------------------
+
+  /**
+   * Enum to specify the Paxos message type.
+   */
+  private static enum PaxosMsgType {
+    PREPARE, LEARN, ACCEPT, REJECT;
+
+    public static PaxosMsgType fromInt(int value) {
+      if(value == PREPARE.ordinal()) { return PREPARE; }
+      else if(value == LEARN.ordinal()) { return LEARN; }
+      else if(value == ACCEPT.ordinal()) { return ACCEPT; }
+      else if(value == REJECT.ordinal()) { return REJECT; }
+      else { return null; }
+    }
+  }
+
+  /**
+   * An RPC message for the Paxos system.
+   */
+  private static class PaxosMsg implements RPCMsg {
+    public static final long serialVersionUID = 0L;
+
+    // msg type
+    public final PaxosMsgType msgType;
+    // round number
+    public final int roundNum;
+    // Paxos proposal
+    public final PaxosProposal proposal;
+
+    public PaxosMsg(PaxosMsgType msgType, int roundNum, PaxosProposal proposal) {
+      this.msgType = msgType;
+      this.roundNum = roundNum;
+      this.proposal = proposal;
+    }
+
+    /**
+     * Returns an unique id that is shared between Request and Response
+     * messages.
+     */
+    public int getId() {
+      return proposal.proposalNum;
+    }
+  }
+
+  /**
+   * A update proposal to voted on by the Paxos system.
+   */
+  private static class PaxosProposal {
+    // proposal number:  proposalnum = counter * numservers + uniqueserverid
+    public final int proposalNum;
+    // origin server number
+    public final int clientId;
+    // the update's message
+    public final RPCMsg updateMsg;
+
+    PaxosProposal(int proposalNum, int clientId, RPCMsg updateMsg) {
+      this.proposalNum = proposalNum;
+      this.clientId = clientId;
+      this.updateMsg = updateMsg;
+    }
+  }
+
 }
