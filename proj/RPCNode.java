@@ -47,6 +47,8 @@ public abstract class RPCNode extends RIONode {
 	// startup routines
 	//----------------------------------------------------------------------------
 
+  // TODO: needs to be hardcoded somewhere
+  private Set<Integer> servers;
   private PaxosManager paxos;
 
   public RPCNode() {
