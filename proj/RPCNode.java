@@ -591,7 +591,7 @@ public abstract class RPCNode extends RIONode {
 
           // TODO: How to distinguish PROMISEs from different voting rounds?
         	// TODO: How to tell if the response is promising or rejecting the promise???
-        	receivePrepareResponse(msg);
+        	receivePrepareResponse(from, msg);
         	
 //          promisingAcceptors.add(from);
 //          // if we have a majority of ACCEPTS
@@ -642,7 +642,7 @@ public abstract class RPCNode extends RIONode {
     //
     private void sendPrepareResponse(int from, boolean promised) {
 
-    	// TODO: IMPORTANT I want to also sent back
+    	// TODO: DAVID!! IMPORTANT!!! I want to also sent back
     	// Promised/Rejected
     	// The current accepted proposal value (includes proposal num) (could be null)
       RPCSendPaxosResponse(from, new PaxosMsg(PaxosMsgType.PROMISE, 
