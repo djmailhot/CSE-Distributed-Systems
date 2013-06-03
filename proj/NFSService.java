@@ -241,19 +241,8 @@ public class NFSService {
    * @return the name of the temp file
    */
   private String copyTempFile(String filename) throws IOException {
-    //System.out.println("copy " + filename);
     String tempname = newTempFile(filename);
-    List<String> lines = read(filename);
-
-    PersistentStorageWriter writer = node.getWriter(tempname, true);
-    if(lines != null) {
-      for(String line : lines) {
-        writer.append(line);
-        writer.newLine();
-      }
-    }
-    writer.close();
-
+    copy(filename, tempname);
     return tempname;
   }
 
