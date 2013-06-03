@@ -9,10 +9,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.logging.Logger;
 
 import plume.Pair;
@@ -427,21 +424,32 @@ public abstract class RPCNode extends RIONode {
 
 
 
-    // Most recent proposal number for this round
+    // The current round of voting
+    private int currRound;
 
-    // Map of round numbers to chosen proposal
+    // The highest proposal number yet seen
+    private int maxSeqNum;
 
-    // CurrProposal number counter
+    // Proposer resource
+    // Acceptors that responded with a PROMISE
+    private Set<Integer> promisedAcceptors;
 
+    // Acceptor resource
     // PREPAREd proposal (but not chosen yet, waiting for ACCEPT request)
+    private PaxosProposal preparedProposal;
 
-    // The last round for which the proposal was processed
+    // Learner resource
+    // Map of round numbers to chosen proposal
+    private SortedMap<Integer, PaxosProposal> decidedProposals;
 
-    // Map of proposal to client who initiated
 
 
     PaxosManager() {
       // TODO: cool stuff, bro
+      this.decidedProposals = new TreeMap<Integer, PaxosProposal>();
+      this.maxSeqNum = 0;
+      this.preparedProposal = null;
+      this.currRound = 1;
     }
 
     /**
@@ -457,7 +465,12 @@ public abstract class RPCNode extends RIONode {
      *            The message of the update.
      */
     public void onUpdateAttempt(int from, RPCMsg updateMsg) {
-      // add this update message to the queue of messages
+      // This will bypass all in-progress Paxos code
+      onRPCCommitRequest(from, updateMsg);
+
+      // Actual code
+
+      // add this update message to the queue of messages needing to be voted on
 
       // examples on how to put together a PaxosMsg
       int proposalNum = 0;
@@ -477,23 +490,53 @@ public abstract class RPCNode extends RIONode {
      */
     public void onRequest(int from, RPCMsg message) {
       PaxosMsg msg = (PaxosMsg)message;
+      Log.i(TAG, String.format("request from %d with %s", from, msg));
+
       PaxosMsgType type = msg.msgType;
       switch(type) {
-        // TODO: Can rename these if you like
+        case PREPARE: // node told to PREPARE for a proposal
+          
+          // if no previous promise or if the promise number is less than this msg
+          // then we can re-promise on this msg
+          if(preparedProposal == null ||
+             preparedProposal.proposalNum < msg.proposal.proposalNum) {
 
-        case PREPARE:
-          // node received a proposal PREPARE message
-        case LEARN:
-          // node directed to LEARN a new value
-        // case ACCEPT: should never get this
-        // case REJECT: should never get this
-        case UPDATE:
-          // node queried to provide all updates committed since the
-          // attached proposal
-          // NOTE: this is how a node will update state after a restart
+            RPCSendPaxosResponse(from, new PaxosMsg(PaxosMsgType.PROMISE, 
+                                                    currRound, msg.proposal));
+            preparedProposal = msg.proposal;
+          } // else ignore
+          break;
+
+        // case PROMISE: // should never get this
+        case ACCEPT: // node directed to ACCEPT a new value
+
+          // only accept of the proposal matches our promised proposal
+          if(msg.proposal.equals(preparedProposal)) {
+            RPCSendPaxosResponse(from, new PaxosMsg(PaxosMsgType.DECIDED,
+                                                    currRound, msg.proposal));
+          } // else ignore
+          break;
+          
+        case DECIDED: // node notified that a new value has been DECIDED upon
+
+          PaxosProposal decidedProposal = decidedProposals.get(msg.roundNum);
+          // only proceed if we haven't already committed the proposal for
+          // this round
+          if(decidedProposal == null) {
+            // pass the new value up a layer to be formally committed locally
+            onRPCCommitRequest(from, msg.proposal.updateMsg);
+            decidedProposals.put(msg.roundNum, msg.proposal);
+          } // else ignore
+          break;
+          
+        case UPDATE: // node queried to provide all updates committed since the
+                     // attached proposal
+                     // NOTE: this is how a node will update state after a restart
         default:
           Log.w(TAG, "Invalid PaxosMsgType on a request");
       }
+
+      maxSeqNum = Math.max(maxSeqNum, msg.proposal.proposalNum);
     }
 
     /**
@@ -507,22 +550,38 @@ public abstract class RPCNode extends RIONode {
      */
     public void onResponse(int from, RPCMsg message) {
       PaxosMsg msg = (PaxosMsg)message;
+      Log.i(TAG, String.format("response from %d with %s", from, msg));
+
       PaxosMsgType type = msg.msgType;
       switch(type) {
-        // TODO: Can rename these if you like
-
         // case PREPARE: should never get this
-        // case LEARN: should never get this
-        case ACCEPT:
-          // node received an ACCEPT in response to a PREPARE message
-        case REJECT:
-          // node received a REJECT in response to a PREPARE message
-        case UPDATE:
-          // node receiving a catch-up proposal update
-          // NOTE: this is how a node will update state after a restart
+        case PROMISE: // node heard back with a PROMISE in response to a PREPARE
+
+          // TODO: How to distinguish PROMISEs from different voting rounds?
+
+          promisedAcceptors.add(from);
+          // if we have a majority of ACCEPTS
+          if(promisedAcceptors.size() > servers.size() / 2) {
+            // send an ACCEPT request to all other servers
+            for(Integer address : servers) {
+              // except myself
+              if(address != addr) {
+                RPCSendPaxosRequest(address, 
+                                    new PaxosMsg(PaxosMsgType.ACCEPT,
+                                                 currRound, msg.proposal));
+              }
+            }
+          } // else wait for more promises
+          break;
+          
+        // case ACCEPT: should never get this
+        // case DECIDED: should never get this
+        case UPDATE: // node receiving a catch-up proposal update
+                     // NOTE: this is how a node will update state after a restart
         default:
           Log.w(TAG, "Invalid PaxosMsgType on a response");
       }
+      maxSeqNum = Math.max(maxSeqNum, msg.proposal.proposalNum);
     }
 
     //-------------------- Paxos State Machine --------------------------------
@@ -567,6 +626,17 @@ public abstract class RPCNode extends RIONode {
     }
     //-------------------- Paxos Methods End ---------------------------------//
 
+
+    /**
+     * Return the next proposal sequence number for this node based on the
+     * specified max sequence number seen.
+     */
+    private int nextSeqNum(int maxSeqNum) {
+      // TODO: get this number from a real source
+      int numServers = 5;
+      return ((maxSeqNum / numServers) * numServers) + addr;
+    }
+
   }
 
   //-------------------------------------------------------------------------
@@ -577,14 +647,24 @@ public abstract class RPCNode extends RIONode {
    * Enum to specify the Paxos message type.
    */
   private static enum PaxosMsgType {
-    PREPARE, LEARN, ACCEPT, REJECT, UPDATE;
+    PREPARE("PREPARE"),
+    PROMISE("PROMISE"),
+    ACCEPT("ACCEPT"),
+    DECIDED("DECIDED"),
+    UPDATE("UPDATE");
 
-    public static PaxosMsgType fromInt(int value) {
-      if(value == PREPARE.ordinal()) { return PREPARE; }
-      else if(value == LEARN.ordinal()) { return LEARN; }
-      else if(value == ACCEPT.ordinal()) { return ACCEPT; }
-      else if(value == REJECT.ordinal()) { return REJECT; }
-      else if(value == UPDATE.ordinal()) { return UPDATE; }
+    private String value;
+
+    private PaxosMsgType(String value) {
+      this.value = value;
+    }
+
+    public static PaxosMsgType fromString(String value) {
+      if(value.equals(PREPARE.value)) { return PREPARE; }
+      else if(value.equals(PROMISE.value)) { return PROMISE; }
+      else if(value.equals(ACCEPT.value)) { return ACCEPT; }
+      else if(value.equals(DECIDED.value)) { return DECIDED; }
+      else if(value.equals(UPDATE.value)) { return UPDATE; }
       else { return null; }
     }
   }
@@ -615,6 +695,20 @@ public abstract class RPCNode extends RIONode {
     public int getId() {
       return proposal.proposalNum;
     }
+
+    public boolean equals(Object o) {
+      if(!(o instanceof PaxosMsg)) {
+        return false;
+      }
+      PaxosMsg p = (PaxosMsg)o;
+
+      return getId() == p.getId();
+    }
+
+    public String toString() {
+      return String.format("PaxosMsg{%s, round %d, %s}",
+                            msgType, roundNum, proposal);
+    }
   }
 
   /**
@@ -632,6 +726,22 @@ public abstract class RPCNode extends RIONode {
       this.proposalNum = proposalNum;
       this.clientId = clientId;
       this.updateMsg = updateMsg;
+    }
+
+    public boolean equals(Object o) {
+      if(!(o instanceof PaxosProposal)) {
+        return false;
+      }
+      PaxosProposal p = (PaxosProposal)o;
+
+      return proposalNum == p.proposalNum &&
+             clientId == p.clientId &&
+             updateMsg.getId() == p.updateMsg.getId();
+    }
+
+    public String toString() {
+      return String.format("PaxosProposal{num %d, client %d, %s}", 
+                            proposalNum, clientId, updateMsg);
     }
   }
 
