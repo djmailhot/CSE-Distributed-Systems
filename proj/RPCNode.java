@@ -445,8 +445,8 @@ public abstract class RPCNode extends RIONode {
     private PaxosProposal highestNumberPrepareResponseProposal = null;
 
     // Proposer resource
-    // Acceptors that responded with a PROMISE
-    private Set<Integer> promisingAcceptors;
+    // Acceptors that responded to a PREPARE
+    private Set<Integer> prepareResponders;
     
     // Acceptor resource
     // ACCEPTED proposal (unknown if it is chosen - accepted by anyone else)
@@ -458,6 +458,11 @@ public abstract class RPCNode extends RIONode {
     // Acceptors that responded with an ACCEPT
     // When this is a majority, broadcast DECIDED information.
     private Set<Integer> acceptingAcceptors;
+    
+    // Proposer resource
+    // Acceptors that responded with an rejecting ACCEPT
+    // When this is a majority, propose something else
+    private Set<Integer> rejectingAcceptors;
     
     // Acceptor resource
     // The proposal number that node has promised to not accept anything less than
@@ -661,6 +666,8 @@ public abstract class RPCNode extends RIONode {
     
     // recieve proposal
     private void receivePrepareResponse(int from, PaxosMsg msg) {
+    	
+    	// THIS MIGHT TAKE CARE OF THE PROMISE/REJECT ISSUE, now that I think about it...
     	if (msg.proposal != null) { // it has already accepted some sort of proposal
     		if (highestNumberPrepareResponseProposal == null) {
     			highestNumberPrepareResponseProposal = msg.proposal;
@@ -668,18 +675,17 @@ public abstract class RPCNode extends RIONode {
     			highestNumberPrepareResponseProposal = msg.proposal;
     		}
     	}
+      prepareResponders.add(from);
       if (true) { // TODO: accepted
-	      promisingAcceptors.add(from);
 	      // if we have a majority of ACCEPTS
-	      if(promisingAcceptors.size() > servers.size() / 2) {
+	      if(prepareResponders.size() > servers.size() / 2) {
 	        // send an ACCEPT request to all other servers
 	      	sendAcceptRequest();
 	      } // else wait for more promises
       } else { // TODO: rejected
       	
       	// TODO Not sure what to do here for rejects... ??
-      }
-    	
+      }    	
     }
 
     // send accept request to all servers
@@ -692,7 +698,7 @@ public abstract class RPCNode extends RIONode {
     	} else {
     		toSend = preparedProposal;
     	}
-      for(Integer address : servers) {
+      for(Integer address : prepareResponders) { // Send to the majority that responded to prepare request. 
         // except myself
         if(address != addr) {
           RPCSendPaxosRequest(address, 
@@ -702,17 +708,42 @@ public abstract class RPCNode extends RIONode {
       }
     }
     
-    private void receiveAcceptRequest(/* args */) {
-      // Do stuff
-      sendAcceptRepsonse();
+    private void receiveAcceptRequest(int from, PaxosMsg msg) {
+    	if (msg.proposal.proposalNum >= promisedNum) {
+    		acceptedProposal = msg.proposal;
+    		sendAcceptRepsonse(from, true); // There could be duplicate messages in this path.
+    	} else {
+    		sendAcceptRepsonse(from, false);
+    	}
     }
     
-    private void sendAcceptRepsonse() {
-      
+    private void sendAcceptRepsonse(int from, boolean accepted) {
+
+    	// TODO: DAVID!! IMPORTANT!!! I want to also sent back
+    	// Accepted/Rejected
+    	// The current accepted proposal value (includes proposal num) (could be null)
+      RPCSendPaxosResponse(from, new PaxosMsg(PaxosMsgType.PROMISE, 
+                                              currRound, acceptedProposal));
     }
     
-    private void receiveAcceptResponse() {
-    	
+    private void receiveAcceptResponse(int from, PaxosMsg msg) {
+      if (true) { // TODO: accepted
+	      // if we have a majority of ACCEPTS
+      	acceptingAcceptors.add(from);
+	      if(acceptingAcceptors.size() > servers.size() / 2) {
+	        // BROADCAST THAT THE VALUE IS DECIDED
+	      	
+	      } // else wait for more accepts
+      } else { // TODO: rejected
+      	rejectingAcceptors.add(from);
+      	// TODO Not sure what to do here for rejects... ??
+	      if(acceptingAcceptors.size() > servers.size() / 2) {
+	      	if (true) { // TODO: the value has not been decided by other nodes
+	        // Start the process of proposing something else
+	      	// Send Prepare requests
+	      	}
+	      } // else wait for more rejects
+      }    	
     }
     
     // receive the agreed value
