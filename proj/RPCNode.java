@@ -737,7 +737,7 @@ public abstract class RPCNode extends RIONode {
       } else { // TODO: rejected
       	rejectingAcceptors.add(from);
       	// TODO Not sure what to do here for rejects... ??
-	      if(acceptingAcceptors.size() > servers.size() / 2) {
+	      if(rejectingAcceptors.size() > servers.size() / 2) {
 	      	if (true) { // TODO: the value has not been decided by other nodes
 	        // Start the process of proposing something else
 	      	// Send Prepare requests
