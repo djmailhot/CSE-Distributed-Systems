@@ -1,4 +1,5 @@
 import edu.washington.cs.cse490h.lib.Node;
+import edu.washington.cs.cse490h.lib.Utility;
 import edu.washington.cs.cse490h.lib.Node.NodeCrashException;
 
 /**

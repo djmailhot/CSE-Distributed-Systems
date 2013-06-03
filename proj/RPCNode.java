@@ -221,7 +221,8 @@ public abstract class RPCNode extends RIONode {
     public final MessageType type;  // request or response
     public final int tid;  // transaction id
     public final boolean success;
-    public final Pair<Boolean,byte[]> securityResponse;
+    public final boolean securityFlag;
+    public final byte[] securityCred;
     public final NFSTransaction transaction;
     //public final List<MCCFileData> filelist;
     public final MCCFileData[] filearray;
@@ -242,7 +243,8 @@ public abstract class RPCNode extends RIONode {
                      List<MCCFileData> filelist, NFSTransaction transaction) {
       this.type = type;
       this.success = success;
-      this.securityResponse = new Pair<Boolean,byte[]>(true,null);
+      this.securityFlag = true;
+      this.securityCred = null;
       //this.filelist = filelist;
       this.filearray = new MCCFileData[filelist.size()]; //filelist.toArray();
       for (int i = 0; i < filelist.size(); i++) {
@@ -259,7 +261,8 @@ public abstract class RPCNode extends RIONode {
                      List<MCCFileData> filelist, NFSTransaction transaction) {
       this.type = type;
       this.success = success;
-      this.securityResponse = securityResponse;
+      this.securityFlag = securityResponse.a;
+      this.securityCred = securityResponse.b;
       //this.filelist = filelist;
       this.filearray = new MCCFileData[filelist.size()]; //filelist.toArray();
       for (int i = 0; i < filelist.size(); i++) {
@@ -307,14 +310,12 @@ public abstract class RPCNode extends RIONode {
     	  byte[] bytes = bos.toByteArray();
     	  return bytes;
     	} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			} finally {
     	  try {
       	  out.close();
 					bos.close();
 				} catch (IOException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
     	}
@@ -330,17 +331,14 @@ public abstract class RPCNode extends RIONode {
     	  RPCBundle bundle = (RPCBundle) o;
     	  return bundle;
     	} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			} catch (ClassNotFoundException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} finally {
     	  try {
 					bis.close();
 	    	  in.close();
 				} catch (IOException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
     	}

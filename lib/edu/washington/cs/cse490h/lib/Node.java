@@ -20,9 +20,9 @@ public abstract class Node {
 	 * signature in their own node class. 0<=p<=1.
 	 */
 	public static double getFailureRate() { return 5/100.0; }
-	public static double getRecoveryRate() { return 10/100.0; }
-	public static double getDropRate() { return 10/100.0; }
-	public static double getDelayRate() { return 25/100.0; }
+	public static double getRecoveryRate() { return 100/100.0; }
+	public static double getDropRate() { return 0/100.0; }
+	public static double getDelayRate() { return 0/100.0; }
 
 	/**
 	 * Special error that is thrown when fail() is called. It is an unchecked
@@ -65,7 +65,8 @@ public abstract class Node {
 		this.manager = manager;
 		this.addr = addr;
 		drift = 0;
-		// this.vtime = new VectorTime(Manager.MAX_ADDRESS);
+		
+		Utility.mkdirs(addr);
 	}
 
 	/**
