@@ -428,15 +428,46 @@ public abstract class RPCNode extends RIONode {
     private int currRound;
 
     // The highest proposal number yet seen
+    // TODO: should this be mapped from the round number? opinion?
     private int maxSeqNum;
-
+    
     // Proposer resource
-    // Acceptors that responded with a PROMISE
-    private Set<Integer> promisedAcceptors;
+    // The next proposal number for it to use
+    private int currentProposalNum;
+    
+    // Proposer resource
+    // The counter used to updated the currentProposalNum
+    private int counter;
 
+    // TODO: DAVID isn't this a proposer resource? So they can remember what they sent?
     // Acceptor resource
     // PREPAREd proposal (but not chosen yet, waiting for ACCEPT request)
     private PaxosProposal preparedProposal;
+    
+    // Proposer resource
+    // The value of the highest-number proposal received from prepare responders
+    // TODO this is also probably per round....
+    private PaxosProposal highestNumberPrepareResponseProposal = null;
+
+    // Proposer resource
+    // Acceptors that responded with a PROMISE
+    private Set<Integer> promisingAcceptors;
+    
+    // Acceptor resource
+    // ACCEPTED proposal (unknown if it is chosen - accepted by anyone else)
+    // Initially null when no proposal has been accepted
+    // TODO: should this also be mapped from the round? Think on this. DAVID: thoughts?
+    private PaxosProposal acceptedProposal = null;
+    
+    // Proposer resource
+    // Acceptors that responded with an ACCEPT
+    // When this is a majority, broadcast DECIDED information.
+    private Set<Integer> acceptingAcceptors;
+    
+    // Acceptor resource
+    // The proposal number that node has promised to not accept anything less than
+    // TODO: I think this will probably be end up mapped from the round.
+    private int promisedNum = -1;
 
     // Learner resource
     // Map of round numbers to chosen proposal
@@ -495,17 +526,18 @@ public abstract class RPCNode extends RIONode {
       PaxosMsgType type = msg.msgType;
       switch(type) {
         case PREPARE: // node told to PREPARE for a proposal
-          
-          // if no previous promise or if the promise number is less than this msg
-          // then we can re-promise on this msg
-          if(preparedProposal == null ||
-             preparedProposal.proposalNum < msg.proposal.proposalNum) {
-
-            RPCSendPaxosResponse(from, new PaxosMsg(PaxosMsgType.PROMISE, 
-                                                    currRound, msg.proposal));
-            preparedProposal = msg.proposal;
-          } // else ignore
-          break;
+          receivePrepareRequest(from, msg);
+        	
+//          // if no previous promise or if the promise number is less than this msg
+//          // then we can re-promise on this msg
+//          if(preparedProposal == null ||
+//             preparedProposal.proposalNum < msg.proposal.proposalNum) {
+//
+//            RPCSendPaxosResponse(from, new PaxosMsg(PaxosMsgType.PROMISE, 
+//                                                    currRound, msg.proposal));
+//            preparedProposal = msg.proposal;
+//          } // else ignore
+//          break;
 
         // case PROMISE: // should never get this
         case ACCEPT: // node directed to ACCEPT a new value
@@ -558,21 +590,23 @@ public abstract class RPCNode extends RIONode {
         case PROMISE: // node heard back with a PROMISE in response to a PREPARE
 
           // TODO: How to distinguish PROMISEs from different voting rounds?
-
-          promisedAcceptors.add(from);
-          // if we have a majority of ACCEPTS
-          if(promisedAcceptors.size() > servers.size() / 2) {
-            // send an ACCEPT request to all other servers
-            for(Integer address : servers) {
-              // except myself
-              if(address != addr) {
-                RPCSendPaxosRequest(address, 
-                                    new PaxosMsg(PaxosMsgType.ACCEPT,
-                                                 currRound, msg.proposal));
-              }
-            }
-          } // else wait for more promises
-          break;
+        	// TODO: How to tell if the response is promising or rejecting the promise???
+        	receivePrepareResponse(msg);
+        	
+//          promisingAcceptors.add(from);
+//          // if we have a majority of ACCEPTS
+//          if(promisingAcceptors.size() > servers.size() / 2) {
+//            // send an ACCEPT request to all other servers
+//            for(Integer address : servers) {
+//              // except myself
+//              if(address != addr) {
+//                RPCSendPaxosRequest(address, 
+//                                    new PaxosMsg(PaxosMsgType.ACCEPT,
+//                                                 currRound, msg.proposal));
+//              }
+//            }
+//          } // else wait for more promises
+//          break;
           
         // case ACCEPT: should never get this
         // case DECIDED: should never get this
@@ -586,24 +620,91 @@ public abstract class RPCNode extends RIONode {
 
     //-------------------- Paxos State Machine --------------------------------
     
+    private void updateCurrentProposalNumber() {
+    	currentProposalNum = counter * servers.size() + addr;  /// TODO: ASSUMES N servers numbered 0 to N-1  !!!!
+    	counter++;
+    }
+    
     // send of proposal
-    private void sendPrepareRequest(/* args*/) {
-      
+    private void sendPrepareRequest(RPCMsg rpcmsg) {    	
+    	
+    	updateCurrentProposalNumber();
+    	PaxosProposal preparedProposal = new PaxosProposal(currentProposalNum, addr, rpcmsg);
+    	for(int address: servers) {
+        // except myself
+        if(address != addr) {
+	    		RPCSendPaxosResponse(address, new PaxosMsg(PaxosMsgType.PROMISE, 
+	          currRound, preparedProposal));
+        }
+    	}
     }  
     
-    // recieve proposal
-    private void receivePrepareRequest(/* args*/) {
-      // Do stuff
-      sendPrepareResponse();
-    }
-    
     //
-    private void sendPrepareResponse() {
-      
+    private void sendPrepareResponse(int from, boolean promised) {
+
+    	// TODO: IMPORTANT I want to also sent back
+    	// Promised/Rejected
+    	// The current accepted proposal value (includes proposal num) (could be null)
+      RPCSendPaxosResponse(from, new PaxosMsg(PaxosMsgType.PROMISE, 
+                                              currRound, acceptedProposal));
     }
     
-    private void sendAcceptRequest(/* args */) {
-      
+    // recieve proposal
+    private void receivePrepareRequest(int from, PaxosMsg msg) {
+    	// Do stuff
+	  	if (msg.proposal.proposalNum < promisedNum) {
+	  		// Reject
+	  		sendPrepareResponse(from, false);
+	  	} else if (msg.proposal.proposalNum > promisedNum) {
+	  		// Promise
+  	 		promisedNum = msg.proposal.proposalNum;
+  	    sendPrepareResponse(from, true);
+	  	} else { 
+	  		// do nothing for duplicates
+	  	}
+    }
+    
+    // recieve proposal
+    private void receivePrepareResponse(int from, PaxosMsg msg) {
+    	if (msg.proposal != null) { // it has already accepted some sort of proposal
+    		if (highestNumberPrepareResponseProposal == null) {
+    			highestNumberPrepareResponseProposal = msg.proposal;
+    		} else if (highestNumberPrepareResponseProposal.proposalNum < msg.proposal.proposalNum) {
+    			highestNumberPrepareResponseProposal = msg.proposal;
+    		}
+    	}
+      if (true) { // TODO: accepted
+	      promisingAcceptors.add(from);
+	      // if we have a majority of ACCEPTS
+	      if(promisingAcceptors.size() > servers.size() / 2) {
+	        // send an ACCEPT request to all other servers
+	      	sendAcceptRequest();
+	      } // else wait for more promises
+      } else { // TODO: rejected
+      	
+      	// TODO Not sure what to do here for rejects... ??
+      }
+    	
+    }
+
+    // send accept request to all servers
+    private void sendAcceptRequest() {
+    	
+    	PaxosProposal toSend;
+    	if (highestNumberPrepareResponseProposal != null) {
+    		// TODO: DAVID should the client be my address?? or the client that originally sent the transaction?
+    		toSend = new PaxosProposal(currentProposalNum, addr, highestNumberPrepareResponseProposal.updateMsg);
+    	} else {
+    		toSend = preparedProposal;
+    	}
+      for(Integer address : servers) {
+        // except myself
+        if(address != addr) {
+          RPCSendPaxosRequest(address, 
+                              new PaxosMsg(PaxosMsgType.ACCEPT,
+                                           currRound, toSend));
+        }
+      }
     }
     
     private void receiveAcceptRequest(/* args */) {
@@ -613,6 +714,10 @@ public abstract class RPCNode extends RIONode {
     
     private void sendAcceptRepsonse() {
       
+    }
+    
+    private void receiveAcceptResponse() {
+    	
     }
     
     // receive the agreed value
@@ -733,8 +838,12 @@ public abstract class RPCNode extends RIONode {
         return false;
       }
       PaxosProposal p = (PaxosProposal)o;
-
-      return proposalNum == p.proposalNum &&
+      
+      // TODO: DAVID, I don't think we can include proposalNum in equals
+      // proposal equality depends only on the <value> of the proposal, not the number.
+      // If 3/5 nodes have accepted 3 proposals with different numbers, but the same <value>, 
+      // then that value is still chosen. 
+      return proposalNum == p.proposalNum && 
              clientId == p.clientId &&
              updateMsg.getId() == p.updateMsg.getId();
     }
