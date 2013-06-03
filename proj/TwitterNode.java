@@ -135,7 +135,11 @@ public class TwitterNode extends MCCNode {
 				if (waitingForResponse) {
 					System.out.println("Please wait!!");
 				} else {
-					create(parsedCommand[1], parsedCommand[2], transactionId);
+					try{
+						create(parsedCommand[1], parsedCommand[2], transactionId);
+					} catch (ArrayIndexOutOfBoundsException e) {
+						e.printStackTrace();
+					}
 				}
 			return true;
 		} else if (commandName.equals("tweet") && username != null) {
@@ -242,7 +246,7 @@ public class TwitterNode extends MCCNode {
 		//create(filename);
 		mapUUIDs(transactionId, TwitterOp.CREATE, Arrays.asList(user));
 		
-		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId, password.getBytes());
+		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId, this.userToken);
 		b.createFile_newUser(filename, user, password);
 		
 		submitTransaction(DEST_ADDR, b.build());
@@ -281,12 +285,11 @@ public class TwitterNode extends MCCNode {
 			String filename = username + "_followers.txt";
 			List<String> followers = read(filename); // read the cached copy of the followers
 	
-			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
+			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId, this.userToken);
 			b.touchFile(filename);
 			
 			if (followers != null) {
 				for (String follower : followers) {
-					//append(follower + "_stream.txt", username + ": " + tweet);
 					b.appendLine(follower + "_stream.txt", username + ": " + tweet);
 				}
 			}
@@ -295,12 +298,11 @@ public class TwitterNode extends MCCNode {
 			submitTransaction(DEST_ADDR, b.build());
 			System.out.println("read tweets commit sent");
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} 
 	}
 	
-	private void readTweets(int transactionId) {//done
+	private void readTweets(int transactionId) {
 		waitingForResponse = true;
 		try {
 			String filename = username + "_stream.txt";
@@ -312,7 +314,7 @@ public class TwitterNode extends MCCNode {
 			}
 			mapUUIDs(transactionId, TwitterOp.READTWEETS, null);
 			
-			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
+			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId, this.userToken);
 			b.touchFile(filename);
 			b.deleteFile(filename);
 			
@@ -323,33 +325,25 @@ public class TwitterNode extends MCCNode {
 		} 
 	}
 	
-	private void follow(String followUserName, int transactionId) {// done
+	private void follow(String followUserName, int transactionId) {
 		waitingForResponse = true;
-		try {
 			String filename = followUserName + "_followers.txt";
-			if (exists(filename)) {
-				//nfsService.append(filename, username); // append to the cache copy
-			}
 
-			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
-			b.touchFile(filename); // will this fail if the file does not exist??? I hope so!
+			NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId, this.userToken);
+			b.touchFile(filename);
 			b.appendLine(filename, username);
 			
 			mapUUIDs(transactionId, TwitterOp.FOLLOW, Arrays.asList(followUserName));
 			
 			submitTransaction(DEST_ADDR, b.build());
 			System.out.println("follow " + followUserName + " commit sent");
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} 
 	}
 	
 	private void unfollow(String unfollowUserName, int transactionId) {
 		waitingForResponse = true;
 		String filename = unfollowUserName + "_followers.txt";
 
-		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
+		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId, this.userToken);
 		b.deleteLine(filename, username);
 		
 		mapUUIDs(transactionId, TwitterOp.UNFOLLOW, Arrays.asList(unfollowUserName));
@@ -358,11 +352,11 @@ public class TwitterNode extends MCCNode {
 		System.out.println("unfollow " + unfollowUserName + " commit sent"); 
 	}
 	
-	private void block(String blockUserName, int transactionId) {//done
+	private void block(String blockUserName, int transactionId) {
 		waitingForResponse = true;
 		String filename = username + "_followers.txt";
 
-		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId);
+		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId, this.userToken);
 		b.deleteLine(filename, blockUserName);
 		
 		mapUUIDs(transactionId, TwitterOp.BLOCK, Arrays.asList(blockUserName));
@@ -412,7 +406,7 @@ public class TwitterNode extends MCCNode {
 						System.out.println("You are logged in as " + username);
 						
 						nfsService.delete(USER_FILE);
-			            nfsService.append(USER_FILE, username + "\n" + userToken); 
+			            nfsService.append(USER_FILE, username + "\n" + Utility.bytesToHexString(userToken)); 
 						
 					} else {
 						nfsService.delete(USER_FILE);
@@ -480,7 +474,6 @@ public class TwitterNode extends MCCNode {
 						doCommand("create " + extraInfo.get(0), tid); // Retry the transaction.
 					}
 				} catch (IOException e1) {
-					// TODO Auto-generated catch block
 					e1.printStackTrace();
 				}
 				break;
@@ -496,7 +489,6 @@ public class TwitterNode extends MCCNode {
 					}
 					pollCommand(tid);
 				} catch (IOException e1) {
-					// TODO Auto-generated catch block
 					e1.printStackTrace();
 				}
 				break;
@@ -532,7 +524,6 @@ public class TwitterNode extends MCCNode {
 						pollCommand(tid);
 					}
 				} catch (IOException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 				break;

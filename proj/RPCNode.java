@@ -324,14 +324,12 @@ public abstract class RPCNode extends RIONode {
     	  byte[] bytes = bos.toByteArray();
     	  return bytes;
     	} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			} finally {
     	  try {
       	  out.close();
 					bos.close();
 				} catch (IOException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
     	}
@@ -347,17 +345,14 @@ public abstract class RPCNode extends RIONode {
     	  RPCCallBundle bundle = (RPCCallBundle) o;
     	  return bundle;
     	} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			} catch (ClassNotFoundException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} finally {
     	  try {
 					bis.close();
 	    	  in.close();
 				} catch (IOException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
     	}

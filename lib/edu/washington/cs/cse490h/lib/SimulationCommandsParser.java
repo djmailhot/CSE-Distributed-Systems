@@ -16,7 +16,7 @@ public class SimulationCommandsParser extends CommandsParser {
 		for(int i = 2; i < cmd.length; i++) {
 			msg.append(" " + cmd[i]);
 		}
-
+		
 		return Event.getCommand(nodeAddr, msg.toString());
 	}
 }

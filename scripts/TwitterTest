@@ -1,18 +1,18 @@
 start 0
 start 1
 time
-0 create steph
+0 create steph pass1
 time
 time
 time
 time
-0 create matt
+0 create matt pass2
 time
 time
 time
 time
 time
-0 login matt
+0 login matt pass2
 time
 time
 time
@@ -39,7 +39,7 @@ time
 time
 time
 time
-0 login steph
+0 login steph pass1
 time
 time
 time
@@ -82,7 +82,7 @@ time
 0 logout
 time
 time
-0 login matt
+0 login matt pass2
 time
 time 
 time

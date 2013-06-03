@@ -1,3 +1,4 @@
+import edu.washington.cs.cse490h.lib.ServerList;
 import edu.washington.cs.cse490h.lib.Utility;
 
 import java.io.File;
@@ -5,12 +6,14 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
+
 
 import plume.Pair;
 
@@ -48,27 +51,19 @@ public abstract class MCCNode extends RPCNode {
     this.nfsService = new NFSService(this);
     this.committedTids = new HashSet<Integer>();
     this.fileVersions = new HashMap<String, Pair<Integer, Boolean>>(); // filename, (version, deleted)
-    
-    loadSecretKey();
-  }
-
-  private void loadSecretKey() {
-	  try {
-		//should have one line
-		List<String> lines = nfsService.read(SECRET_KEY_FILENAME);
-		
-		this.secretKey = Utility.hexStringToByteArray(lines.get(0));
-		
-	} catch (IOException e) {
-		e.printStackTrace();
-	}
-	
+    this.userCredentials = new HashMap<String, Pair<byte[],byte[]>>();
   }
 
 public void start() {
     this.committedTids.clear();
     this.fileVersions.clear();
     this.userCredentials.clear();
+    
+    // we started with a couple files, which we add to the fileVersions now.  These values will be
+    //  overwritten if the METAFILE is newer than these values, which is perfect.
+    //we set deleted = true so that its not read yet.  its technically not versioned properly until
+    //  the first read.
+    this.fileVersions.put(KEYSTORE_FILENAME, new Pair<Integer,Boolean>(0,true));
 
     // read the metafile and populate the internal data structures
     try {
@@ -105,25 +100,29 @@ public void start() {
     
     //load user security credentials file
     try {
-		List<String> credentialStrings = nfsService.read(KEYSTORE_FILENAME);
+		List<String> credentialStrings = nfsService.read(getVersionedFilename(KEYSTORE_FILENAME));
 		
-		for(String line : credentialStrings) {
-	          line = line.trim();
-	          // if the empty string
-	          if(line.length() == 0) {
-	            continue;
-	          }
-
-	          String[] tokens = line.split(CREDENTIAL_DELIMITER);
-	          if(tokens.length == 3) {
-	        	  this.userCredentials.put(tokens[0], new Pair<byte[],byte[]>(Utility.hexStringToByteArray(tokens[1]),Utility.hexStringToByteArray(tokens[2])));
-	          } else {
-	            throw new IllegalStateException("User security credentials format corrupted");
-	          }
-	        }
+		if(credentialStrings != null && !credentialStrings.isEmpty()){
+			for(String line : credentialStrings) {
+		          line = line.trim();
+		          // if the empty string
+		          if(line.length() == 0) {
+		            continue;
+		          }
+	
+		          String[] tokens = line.split(CREDENTIAL_DELIMITER);
+		          if(tokens.length == 3) {
+		        	  this.userCredentials.put(tokens[0], new Pair<byte[],byte[]>(Utility.hexStringToByteArray(tokens[1]),Utility.hexStringToByteArray(tokens[2])));
+		          } else {
+		            throw new IllegalStateException("User security credentials format corrupted");
+		          }
+		        }
+		}
 	} catch (IOException e) {
 		e.printStackTrace();
 	}
+    
+    loadSecretKey();
 
     super.start();
   }
@@ -131,6 +130,20 @@ public void start() {
 	//----------------------------------------------------------------------------
 	// MCC filesystem commands accessing local files
 	//----------------------------------------------------------------------------
+
+	private void loadSecretKey() {
+		  try {
+			//should have one line if its present
+			List<String> lines = nfsService.read(SECRET_KEY_FILENAME);
+	
+			//if present, then load it
+			if(lines!=null && !lines.isEmpty()) this.secretKey = Utility.hexStringToByteArray(lines.get(0));
+	
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	
+	}
 
   /**
    * Read the specified file.
@@ -203,6 +216,48 @@ public void start() {
             newVersionedFile = getVersionedFilename(filename);
             // reserve the 0-version file for blank newly created files
             runningSuccess = runningSuccess && nfsService.create(newVersionedFile);
+            
+
+        	//else if we are going to commit it, lets create the user credential stuff now
+        	if(runningSuccess && ServerList.in(this.addr)){
+				try {
+            		//create salt
+            		KeyGenerator kg;
+					kg = KeyGenerator.getInstance("AES");
+					SecretKey salt = kg.generateKey();
+        			byte[] saltBytes = salt.getEncoded();
+        			
+        			//get username and password from the transaction
+        			String[] userPass = op.dataline.split("\\|");
+        			
+        			//hash the key
+        			byte[] keyHash = Utility.hashBytes(userPass[1],saltBytes);
+        			
+        			//store in local structure
+        			this.userCredentials.put(userPass[0], new Pair<byte[],byte[]>(saltBytes,keyHash));
+        			
+        			//write to keystore file
+        			Pair<Integer,Boolean> versionAndDeleted2 = fileVersions.get(KEYSTORE_FILENAME);
+                  	
+        			int newVersion = versionAndDeleted2.a + 1;
+        			
+                    String oldVersionedFile2 = getVersionedFilename(KEYSTORE_FILENAME);
+                    fileVersions.put(KEYSTORE_FILENAME, new Pair<Integer,Boolean>(newVersion, false));
+                    String newVersionedFile2 = getVersionedFilename(KEYSTORE_FILENAME);
+                    
+                    if (newVersion > 1) {
+                        nfsService.copy(oldVersionedFile2, newVersionedFile2);
+                      }
+
+                    String outputString = userPass[0] + CREDENTIAL_DELIMITER + Utility.bytesToHexString(saltBytes) + CREDENTIAL_DELIMITER + Utility.bytesToHexString(keyHash) + "\n";
+                    nfsService.append(newVersionedFile2, outputString);
+        			
+				} catch (NoSuchAlgorithmException e) {
+					e.printStackTrace();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+        	}
             break;
           case APPENDLINE:
           	versionAndDeleted = fileVersions.get(filename);
@@ -411,6 +466,7 @@ public void start() {
     // check for any new files on the server not in the filedataCheck list
     Set<String> currentFiles = new HashSet<String>(fileVersions.keySet());
     currentFiles.removeAll(checkVersions.keySet());
+    currentFiles.remove(KEYSTORE_FILENAME);
     for(String newFile : currentFiles) {
       // INVALID: there are files on the server
       Pair<Integer,Boolean> actual = fileVersions.get(newFile);
@@ -483,9 +539,9 @@ public void start() {
       boolean deleted = versionAndDeleted.b;
       data.append(String.format("%d%s%s%s%s\n", version, METAFILE_DELIMITER, filename, METAFILE_DELIMITER, deleted));
     }
-    System.out.println("Meta before");
+
     nfsService.write(METAFILE, data.toString());
-    System.out.println("Meta after");
+
   }
 
 	//----------------------------------------------------------------------------
@@ -538,7 +594,8 @@ public void start() {
     MCCMsg msg = (MCCMsg)message;
     Log.i(TAG, String.format("From node %d, received response %s", from, msg));
     boolean success = msg.success;
-    Pair<Boolean,byte[]> securityResponse = msg.securityResponse;
+    Pair<Boolean,byte[]> securityResponse = 
+                  new Pair<Boolean,byte[]>(msg.securityFlag, msg.securityCred);
     if(success && securityResponse.a) {
       // if successful, apply updates locally
 	    	System.out.println("****************IN ON RPC RESPONSE**************");
@@ -615,22 +672,29 @@ public void start() {
 		// authentication token starts with a null byte so it is easy to identify.
 		if(credential != null && credential[0]!=0){
 			String loginCredential = new String(credential);
-			String[] loginPair = loginCredential.split("|");
+			String[] loginPair = loginCredential.split("\\|");
 			Pair<byte[],byte[]> userCredential = this.userCredentials.get(loginPair[0]);
+			
+			//this user doesn't exist
+			if(userCredential==null) return new Pair<Boolean,byte[]>(false,null);
 			
 			//now we hash the password|salt and make sure it matches our store
 			byte[] computedHash = Utility.hashBytes(loginPair[1],userCredential.a);
-			if(computedHash.equals(userCredential.b)){
+			if(Arrays.equals(computedHash,userCredential.b)){
 				System.out.println("Server says:_________________login credentials good.");
 				
 				//now we generate a new token
 				String clearToken = Integer.toString(from) + CREDENTIAL_DELIMITER + loginPair[0];
 				byte[] newTokenRaw = Utility.AESEncrypt(clearToken.getBytes(), this.secretKey);
-				byte[] newToken = new byte[newTokenRaw.length + 1];
+				byte[] newToken = new byte[newTokenRaw.length + 1 + 32];
+				
+				byte[] mac = Utility.hashBytes(Utility.bytesToHexString(newTokenRaw), null);
 				
 				//...and make sure it starts with a \0
+				//...and includes a mac at the end
 				newToken[0] = 0;
 				System.arraycopy(newTokenRaw,0,newToken,1,newTokenRaw.length);
+				System.arraycopy(mac,0,newToken,newTokenRaw.length+1,mac.length);
 				
 				return new Pair<Boolean,byte[]>(true,newToken);
 			}
@@ -646,23 +710,50 @@ public void start() {
 			int tokenAddress = -1;
 			String currentUser = "";
 			if(credential!=null){
-				byte[] nullStripped = new byte[credential.length-1];
-				System.arraycopy(credential, 1, nullStripped, 0, credential.length-1);
-				byte[] decrypted = Utility.AESDecrypt(nullStripped, this.secretKey);
+				try{
+					byte[] token = new byte[credential.length-1-32];
+					byte[] includedMAC = new byte[32];
+					System.arraycopy(credential, 1, token, 0, credential.length-1-32);
+					System.arraycopy(credential, credential.length-32, includedMAC, 0, 32);
+					
+					byte[] computedMAC = Utility.hashBytes(Utility.bytesToHexString(token), null);
+					
+					//the MAC did not match the MAC in the token
+					if(!Arrays.equals(computedMAC, includedMAC)){
+						System.out.println("Server says:_________________bad MAC on authentication token.");
+						return new Pair<Boolean,byte[]>(false,null);
+					}
+					
+
+					byte[] decrypted = Utility.AESDecrypt(token, this.secretKey);
+					
+					//bad decryption
+					if(decrypted==null) return new Pair<Boolean,byte[]>(false,null);
+					
+					
+					String[] decryptedToken = (new String(decrypted)).split(CREDENTIAL_DELIMITER);
+					
+					//bad token contents / not formatted or corrupted
+					if(decryptedToken==null || decryptedToken.length!=2){
+						System.out.println("Server says:_________________credential misformatted.");
+						return new Pair<Boolean,byte[]>(false,null);
+					}
+					
+					
+					tokenAddress = Integer.parseInt(decryptedToken[0]);
+					currentUser = decryptedToken[1];
+					
+					//from the wrong node; probably a break-in attempt with stolen token from some other node!
+					if(tokenAddress != from){
+						System.out.println("Server says:_________________credential from wrong node.");
+						return new Pair<Boolean,byte[]>(false,null);
+					}
+					
+				} catch (RuntimeException e){
+					System.out.println("Server says:_________________bad authentication token.");
+					return new Pair<Boolean,byte[]>(false,null);
+				}
 				
-				//bad decryption
-				if(decrypted==null) new Pair<Boolean,byte[]>(false,null);
-				
-				String[] token = (new String(decrypted)).split(CREDENTIAL_DELIMITER);
-				
-				//bad token contents / not formatted or corrupted
-				if(token==null || token.length!=2) new Pair<Boolean,byte[]>(false,null);
-				
-				tokenAddress = Integer.parseInt(token[0]);
-				currentUser = token[1];
-				
-				//from the wrong node; probably a break-in attempt with stolen token from some other node!
-				if(tokenAddress != from) return new Pair<Boolean,byte[]>(false,null);
 			}
 			
 			//now lets verify we are authorized to do these transactions
@@ -682,52 +773,12 @@ public void start() {
 		            	if(!op.filename.endsWith("_followers.txt")){
 		            		return new Pair<Boolean,byte[]>(false,null);
 		            	}
-		            	
-		            	//else if we are going to commit it, lets create the user credential stuff now
-		            	if(willCommit){
-							try {
-			            		//create salt
-			            		KeyGenerator kg;
-								kg = KeyGenerator.getInstance("AES");
-								SecretKey salt = kg.generateKey();
-			        			byte[] saltBytes = salt.getEncoded();
-			        			
-			        			//get username and password from the transaction
-			        			String[] userPass = op.dataline.split("|");
-			        			
-			        			//hash the key
-			        			byte[] keyHash = Utility.hashBytes(userPass[1],saltBytes);
-			        			
-			        			//store in local structure
-			        			this.userCredentials.put(userPass[0], new Pair<byte[],byte[]>(saltBytes,keyHash));
-			        			
-			        			//write to keystore file
-			        			Pair<Integer,Boolean> versionAndDeleted = fileVersions.get(KEYSTORE_FILENAME);
-			                  	
-			        			int newVersion = Math.max(versionAndDeleted.a, 0) + 1;
-			        			
-			                    System.out.println("Updating keystore to version: " + newVersion);
-			                    fileVersions.put(KEYSTORE_FILENAME, new Pair<Integer,Boolean>(newVersion, false));
-			                    String newVersionedFile = getVersionedFilename(KEYSTORE_FILENAME);
-
-			                    String outputString = userPass[0] + CREDENTIAL_DELIMITER + Utility.bytesToHexString(saltBytes) + CREDENTIAL_DELIMITER + Utility.bytesToHexString(keyHash);
-			                    nfsService.append(newVersionedFile, outputString);
-			                    writeMetafile();
-			        			
-							} catch (NoSuchAlgorithmException e) {
-								e.printStackTrace();
-								return new Pair<Boolean,byte[]>(false,null);
-							} catch (IOException e) {
-								e.printStackTrace();
-								return new Pair<Boolean,byte[]>(false,null);
-							}
-		            	}
 		            	break;
 		            //if it is a followers file, you can append only yourself to it
 		            //if it is a stream file, you can append only if that stream's user is in your followers
 		            case APPENDLINE:
 		            	if(op.filename.endsWith("_followers.txt")){
-		            		if(op.dataline!=currentUser) return new Pair<Boolean,byte[]>(false,null);
+		            		if(!op.dataline.equals(currentUser)) return new Pair<Boolean,byte[]>(false,null);
 		            	}
 		            	else if(op.filename.endsWith("_stream.txt")){
 		            		List<String> followers;
@@ -740,7 +791,8 @@ public void start() {
 		        			if (followers != null) {
 		        				boolean matchFound = false;
 		        				for (String follower : followers) {
-		        					if(follower == op.dataline) matchFound = true;
+		        					String targetUser = op.filename.substring(0, op.filename.indexOf("_"));
+		        					if(follower.equals(targetUser)) matchFound = true;
 		        				}
 		        				if(!matchFound) return new Pair<Boolean,byte[]>(false,null);
 		        			}
@@ -751,14 +803,14 @@ public void start() {
 		            //Again - very restricted.  We only use this to clear your twitter stream, so that is
 		            // all you can do with this.
 		            case DELETEFILE:
-		            	if(op.filename != currentUser + "_stream.txt") return new Pair<Boolean,byte[]>(false,null);
+		            	if(!op.filename.equals(currentUser + "_stream.txt")) return new Pair<Boolean,byte[]>(false,null);
 		            	break;
 		            //Two valid cases:
 		            //1. Delete yourself from a followers file
 		            //2. Delete any line from your followers
 		            case DELETELINE:
 		            	if (op.filename.endsWith("_followers.txt") && op.filename != currentUser+"_followers.txt"){
-		            		if(op.dataline != currentUser) return new Pair<Boolean,byte[]>(false,null);
+		            		if(!op.dataline.equals(currentUser)) return new Pair<Boolean,byte[]>(false,null);
 		            	}
 		            	break;
 				 }
@@ -795,7 +847,8 @@ public void start() {
     public final NFSTransaction transaction;
     public final MCCFileData[] filearray;
     public final boolean success;
-    public final Pair<Boolean,byte[]> securityResponse;
+    public final boolean securityFlag;
+    public final byte[] securityCred;
 
     /**
      * Wrapper around a file version list and a filesystem transaction.
@@ -814,7 +867,8 @@ public void start() {
       this.filearray = filelist.toArray(new MCCFileData[filelist.size()]);
       this.transaction = transaction;
       this.success = success;
-      this.securityResponse = securityResponse;
+      this.securityFlag = securityResponse.a;
+      this.securityCred = securityResponse.b;
     }
 
     /**

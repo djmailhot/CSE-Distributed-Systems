@@ -118,7 +118,8 @@ public class Simulator extends Manager {
             Long seed, String replayOutputFilename, String replayInputFilename,
             String commandFile) throws IllegalArgumentException,
             FileNotFoundException, IOException {
-        this(nodeImpl, seed, replayOutputFilename, replayInputFilename);
+    	
+        this(nodeImpl, 1370235001922l, replayOutputFilename, replayInputFilename);
 
         cmdInputType = InputType.FILE;
         userControl = failureGen;
@@ -808,7 +809,6 @@ public class Simulator extends Manager {
         try {
             destNode.onReceive(srcAddr, pkt.getProtocol(), pkt.getPayload());
         } catch (NodeCrashException e) {
-        	System.out.println("Made it to deliverPkt");
             failNode(destAddr);
         }
     }
