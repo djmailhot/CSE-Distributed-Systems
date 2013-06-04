@@ -806,6 +806,7 @@ public abstract class RPCNode extends RIONode {
   private static class PaxosMsg implements RPCMsg {
     public static final long serialVersionUID = 0L;
 
+    public final int id;
     // msg type
     public final PaxosMsgType msgType;
     // round number
@@ -813,10 +814,20 @@ public abstract class RPCNode extends RIONode {
     // Paxos proposal
     public final PaxosProposal proposal;
 
-    public PaxosMsg(PaxosMsgType msgType, int roundNum, PaxosProposal proposal) {
+    PaxosMsg(int id, PaxosMsgType msgType, int roundNum, PaxosProposal proposal) {
       this.msgType = msgType;
       this.roundNum = roundNum;
       this.proposal = proposal;
+      this.id = id;
+    }
+
+    PaxosMsg(PaxosMsgType msgType, int roundNum, PaxosProposal proposal) {
+      this(Math.abs(Utility.getRNG().nextInt()), msgType, roundNum, proposal);
+    }
+
+    PaxosMsg(PaxosMsg originalRequest, PaxosMsgType msgType) {
+      this(originalRequest.id, msgType, 
+           originalRequest.roundNum, originalRequest.proposal);
     }
 
     /**
@@ -824,7 +835,7 @@ public abstract class RPCNode extends RIONode {
      * messages.
      */
     public int getId() {
-      return proposal.proposalNum;
+      return id;
     }
 
     public boolean equals(Object o) {
@@ -869,6 +880,8 @@ public abstract class RPCNode extends RIONode {
       // proposal equality depends only on the <value> of the proposal, not the number.
       // If 3/5 nodes have accepted 3 proposals with different numbers, but the same <value>, 
       // then that value is still chosen. 
+      // TODO: STEPH, what about multiple identical updates submitted?  I try
+      // to append the same value to the same file multiple times?
       return proposalNum == p.proposalNum && 
              clientId == p.clientId &&
              updateMsg.getId() == p.updateMsg.getId();

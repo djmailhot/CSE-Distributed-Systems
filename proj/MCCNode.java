@@ -582,11 +582,7 @@ public void start() {
   public void onRPCCommitRequest(Integer from, RPCMsg message) {
     MCCMsg msg = (MCCMsg)message;
     Log.i(TAG, String.format("From node %d, received request %s", from, msg));
-    List<MCCFileData> list = new ArrayList<MCCFileData>();
-    for (MCCFileData file : msg.filearray) {
-    	list.add(file);
-    }
-    onMCCRequest(from, list, msg.transaction);
+    onMCCRequest(from, msg);
   }
 
   @Override
@@ -625,12 +621,14 @@ public void start() {
    * @param transaction
    *            The filesystem transaction to send.
 	 */
-  public void onMCCRequest(Integer from, List<MCCFileData> filedataCheck, 
-                           NFSTransaction transaction) {
+  public void onMCCRequest(Integer from, MCCMsg msg) {
+    List<MCCFileData> filedataCheck = 
+                      new ArrayList<MCCFileData>(Arrays.asList(msg.filearray));
+    NFSTransaction transaction = msg.transaction;
     MCCMsg responseMsg = null;
     if(committedTids.contains(transaction.tid)) {
       // DUPLICATE REQUEST, ALREADY COMMITTED ON THE SERVER
-      responseMsg = new MCCMsg(new ArrayList<MCCFileData>(), transaction, true, new Pair<Boolean,byte[]>(true,null));
+      responseMsg = new MCCMsg(msg, new ArrayList<MCCFileData>(), true, new Pair<Boolean,byte[]>(true,null));
 
     } else {
       // verify that the filedataCheck is up-to-version
@@ -643,11 +641,11 @@ public void start() {
         System.out.println(addr);
         System.out.println(transaction);
         commitTransaction(transaction);
-        responseMsg = new MCCMsg(filedataUpdate, transaction, true, securityResponse);
+        responseMsg = new MCCMsg(msg, filedataUpdate, true, securityResponse);
 
       } else {
         // NO GOOD!  TOO LATE!  get them the new version data
-        responseMsg = new MCCMsg(filedataUpdate, transaction, false, securityResponse);
+        responseMsg = new MCCMsg(msg, filedataUpdate, false, securityResponse);
       }
     }
 
@@ -844,31 +842,39 @@ public void start() {
   protected static class MCCMsg implements RPCMsg {
     public static final long serialVersionUID = 0L;
 
+    public final int id;
     public final NFSTransaction transaction;
     public final MCCFileData[] filearray;
     public final boolean success;
     public final boolean securityFlag;
     public final byte[] securityCred;
 
-    /**
-     * Wrapper around a file version list and a filesystem transaction.
-     *
-     * @param filelist
-     *            A list of files and version numbers with contents.
-     * @param transaction
-     *            The filesystem transaction to include.
-     * @param success
-     *            Whether the message represents a successful request
-     * @param securityResponse
-     *            Security-related flags.
-     */
-    MCCMsg(List<MCCFileData> filelist, NFSTransaction transaction, 
+    private MCCMsg(int id, List<MCCFileData> filelist, NFSTransaction transaction, 
               boolean success, Pair<Boolean,byte[]> securityResponse) {
+      this.id = id;
       this.filearray = filelist.toArray(new MCCFileData[filelist.size()]);
       this.transaction = transaction;
       this.success = success;
       this.securityFlag = securityResponse.a;
       this.securityCred = securityResponse.b;
+    }
+
+    /**
+     * Wrapper around a file version list and a filesystem transaction.
+     *
+     * @param originalRequest
+     *            The original requesting MCCMsg.  Used for id and transaction.
+     * @param filelist
+     *            A list of files and version numbers with contents.
+     * @param success
+     *            Whether the message represents a successful request
+     * @param securityResponse
+     *            Security-related flags.
+     */
+    MCCMsg(MCCMsg originalRequest, List<MCCFileData> filelist,
+              boolean success, Pair<Boolean,byte[]> securityResponse) {
+      this(originalRequest.id, filelist, originalRequest.transaction, 
+           false, new Pair<Boolean,byte[]>(true, null));
     }
 
     /**
@@ -880,11 +886,12 @@ public void start() {
      *            The filesystem transaction to include.
      */
     MCCMsg(List<MCCFileData> filelist, NFSTransaction transaction) {
-      this(filelist, transaction, false, new Pair<Boolean,byte[]>(true, null));
+      this(Math.abs(Utility.getRNG().nextInt()), filelist, 
+           transaction, false, new Pair<Boolean,byte[]>(true, null));
     }
 
     public int getId() {
-      return transaction.tid;
+      return id;
     }
 
     public String toString() {
