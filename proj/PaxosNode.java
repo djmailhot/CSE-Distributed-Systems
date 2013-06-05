@@ -54,10 +54,6 @@ public abstract class PaxosNode extends RPCNode {
   // The current round of voting
   private int currRound;
 
-  // Learner resource
-  // Map of round numbers to chosen proposal
-  private SortedMap<Integer, PaxosProposal> decidedProposals;
-
 
   private final Proposer proposer;
   private final Acceptor acceptor;
@@ -264,7 +260,7 @@ public abstract class PaxosNode extends RPCNode {
     }
 
     public boolean isProposing() {
-      return currProposal == null;
+      return currProposal != null;
     }
 
     /**
@@ -301,20 +297,19 @@ public abstract class PaxosNode extends RPCNode {
       currProposal = proposal;
 
       for(int address: ServerList.serverNodes) {
-        // except myself
-        if(address != addr) {
-          RPCSendPaxosRequest(address, 
-                              new PaxosMsg(PaxosMsgType.PROPOSER_PREPARE, 
-                                           currRound, proposal));
-        }
+        // send it even to myself
+        // only send the proposal num
+        RPCSendPaxosRequest(address, 
+                new PaxosMsg(PaxosMsgType.PROPOSER_PREPARE, 
+                             currRound, proposal.proposalNum));
       }
     }  
 
     // recieve prepare results
     public void receivePrepareResponse(int from, PaxosMsg msg) {
 
-      if(msg.roundNum == currRound) {
-        // if this message is for the current round
+      if(msg.currProposalNum == currProposal.proposalNum) {
+        // if this message is for the current proposal
         switch(msg.msgType) {
           case ACCEPTOR_PROMISE:
             promisingAcceptors.add(from);
@@ -347,7 +342,11 @@ public abstract class PaxosNode extends RPCNode {
           default:
             Log.w(TAG, "Recieved an invalid message type");
         }
-      } // else, this message was for a different round
+      } else if(msg.currProposalNum > currProposal.proposalNum) {
+        // else, this message was for a more current proposal
+        // TODO: do something?
+
+      } // else, this message was for an older proposal
       
     }
 
@@ -356,16 +355,15 @@ public abstract class PaxosNode extends RPCNode {
     private void broadcastAcceptRequests(PaxosProposal proposal) {
       // Send Accepts to every server. 
       for(int address: ServerList.serverNodes) {
-        // except myself
-        if(address != addr) {
-          RPCSendPaxosRequest(address, 
-                              new PaxosMsg(PaxosMsgType.PROPOSER_ACCEPT,
-                                           currRound, proposal));
-        }
+        // send even to myself
+        RPCSendPaxosRequest(address, 
+                new PaxosMsg(PaxosMsgType.PROPOSER_ACCEPT,
+                             currRound, proposal));
       }
     }
       
 
+    // TODO:  Shouldn't the Learner deal with this?
     // get accepted responses from acceptors
     public void receiveAcceptedResponse(int from, PaxosMsg msg) {
       // if we have a majority of PROPOSER_ACCEPTS
@@ -401,16 +399,16 @@ public abstract class PaxosNode extends RPCNode {
      * This Acceptor received a request to prepare for a proposal.
      */
     public void receivePrepareRequest(int from, PaxosMsg msg) {
-      if (msg.proposal.proposalNum < promisedNum) {
+      if (msg.currProposalNum < promisedNum) {
         // Reject
         // Send a response proposal with the current promise number
         RPCSendPaxosResponse(from, 
-                             new PaxosMsg(msg, PaxosMsgType.ACCEPTOR_REJECT));
-      } else if (msg.proposal.proposalNum > promisedNum) {
+                new PaxosMsg(msg, PaxosMsgType.ACCEPTOR_REJECT, promisedNum));
+      } else if (msg.currProposalNum > promisedNum) {
         // Promise
         promisedNum = msg.proposal.proposalNum;
         RPCSendPaxosResponse(from,
-                             new PaxosMsg(msg, PaxosMsgType.ACCEPTOR_PROMISE));
+                new PaxosMsg(msg, PaxosMsgType.ACCEPTOR_PROMISE, promisedNum));
       } else { 
         // do nothing for duplicates
       }
@@ -423,8 +421,8 @@ public abstract class PaxosNode extends RPCNode {
     public void receiveAcceptRequest(int from, PaxosMsg msg) {
       if (msg.proposal.proposalNum == promisedNum) {
         // if the accept request is for the proposal we promised
-        RPCSendPaxosResponse(from, new PaxosMsg(PaxosMsgType.ACCEPTOR_ACCEPTED, 
-                                                currRound, msg.proposal));
+        RPCSendPaxosResponse(from, 
+                             new PaxosMsg(msg ,PaxosMsgType.ACCEPTOR_ACCEPTED));
       } else {
         // TODO: don't do anything?
         // TODO: DAVID!! IMPORTANT!!! I want to also sent back
@@ -440,6 +438,10 @@ public abstract class PaxosNode extends RPCNode {
   //////////////////////////////////////////////////////////////////////////
 
   private class Learner {
+
+    // Learner resource
+    // Map of round numbers to chosen proposal
+    private SortedMap<Integer, PaxosProposal> decidedProposals;
 
     Learner() {
     }
@@ -505,21 +507,37 @@ public abstract class PaxosNode extends RPCNode {
     public final int roundNum;
     // Paxos proposal
     public final PaxosProposal proposal;
+    // a current proposal number of a node
+    public final int currProposalNum;
 
-    PaxosMsg(int id, PaxosMsgType msgType, int roundNum, PaxosProposal proposal) {
+    private PaxosMsg(int id, PaxosMsgType msgType, int roundNum,
+                     PaxosProposal proposal, int currProposalNum) {
+      this.id = id;
       this.msgType = msgType;
       this.roundNum = roundNum;
       this.proposal = proposal;
-      this.id = id;
+      this.currProposalNum = currProposalNum;
     }
 
     PaxosMsg(PaxosMsgType msgType, int roundNum, PaxosProposal proposal) {
-      this(Math.abs(Utility.getRNG().nextInt()), msgType, roundNum, proposal);
+      this(Math.abs(Utility.getRNG().nextInt()), msgType, 
+           roundNum, proposal, proposal.proposalNum);
+    }
+
+    PaxosMsg(PaxosMsgType msgType, int roundNum, int currProposalNum) {
+      this(Math.abs(Utility.getRNG().nextInt()), msgType, 
+           roundNum, null, currProposalNum);
     }
 
     PaxosMsg(PaxosMsg originalRequest, PaxosMsgType msgType) {
       this(originalRequest.id, msgType, 
-           originalRequest.roundNum, originalRequest.proposal);
+           originalRequest.roundNum, originalRequest.proposal,
+           originalRequest.proposal.proposalNum);
+    }
+
+    PaxosMsg(PaxosMsg originalRequest, PaxosMsgType msgType, int currProposalNum) {
+      this(originalRequest.id, msgType, 
+           originalRequest.roundNum, originalRequest.proposal, currProposalNum);
     }
 
     /**
