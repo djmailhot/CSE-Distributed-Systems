@@ -23,7 +23,7 @@ import plume.Pair;
  *
  * It uses discrete Transactions to jump from one version to the next.
  */
-public abstract class MCCNode extends RPCNode {
+public abstract class MCCNode extends PaxosNode {
   private static final String TAG = "RPCNode";
   private static final String METAFILE = "METAFILE";
   private static final String METAFILE_DELIMITER = "\t";
@@ -579,14 +579,14 @@ public void start() {
 	//----------------------------------------------------------------------------
 
   @Override
-  public void onRPCCommitRequest(Integer from, RPCMsg message) {
+  public void onCommitRequest(Integer from, RPCMsg message) {
     MCCMsg msg = (MCCMsg)message;
     Log.i(TAG, String.format("From node %d, received request %s", from, msg));
     onMCCRequest(from, msg);
   }
 
   @Override
-  public void onRPCCommitResponse(Integer from, RPCMsg message) {
+  public void onCommitResponse(Integer from, RPCMsg message) {
     MCCMsg msg = (MCCMsg)message;
     Log.i(TAG, String.format("From node %d, received response %s", from, msg));
     boolean success = msg.success;
