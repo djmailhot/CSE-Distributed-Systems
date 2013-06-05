@@ -394,6 +394,9 @@ public abstract class PaxosNode extends RPCNode {
     // Initially null when no proposal has been accepted
     // TODO: should this also be mapped from the round? Think on this. DAVID: thoughts?
     // TODO: Don't think we actually need this...
+    // TODO: I think we do, because when we reject a promise, we have to respond
+    // with the highest proposal number that we have promised AND the value of the proposal that we
+    // have previously accepted. Then the proposer is constrainted to propose with a higher number AND a consistent value.
 //    private PaxosProposal acceptedProposal;
 
     Acceptor() {
@@ -408,6 +411,8 @@ public abstract class PaxosNode extends RPCNode {
         // Reject
         // Send a response proposal with the current promise number
         PaxosProposal promisedProposal = new PaxosProposal(promisedNum);
+      	// TODO: Ahah! here's the place we should also send the currently accepted proposal value.
+        // I've done that now, right? -> David
         RPCSendPaxosResponse(from, 
                 new PaxosMsg(msg, PaxosMsgType.ACCEPTOR_REJECT, promisedProposal));
 
@@ -415,6 +420,8 @@ public abstract class PaxosNode extends RPCNode {
         // Promise
         promisedNum = msg.proposal.proposalNum;
         PaxosProposal promisedProposal = new PaxosProposal(promisedNum);
+        // TODO: send currently accepted proposal here too...
+        // I've done this too now, right? -> David
         RPCSendPaxosResponse(from,
                 new PaxosMsg(msg, PaxosMsgType.ACCEPTOR_PROMISE, promisedProposal));
 
@@ -429,6 +436,8 @@ public abstract class PaxosNode extends RPCNode {
      */
     public void receiveAcceptRequest(int from, PaxosMsg msg) {
       if (msg.proposal.proposalNum == promisedNum) {
+      	// TODO: Should this be greater-than-or-equal?
+      	// TODO: Can greater-than even ever happen? Maybe not....
         // if the accept request is for the proposal we promised
         // broadcast to all Learners that we've Accepted a value
         for(int address: ServerList.serverNodes) {
@@ -440,6 +449,11 @@ public abstract class PaxosNode extends RPCNode {
         // TODO: DAVID!! IMPORTANT!!! I want to also sent back
         // Accepted/Rejected
         // The current accepted proposal value (includes proposal num) (could be null)
+      	
+      	
+      	// TODO: do anything else?
+      	RPCSendPaxosResponse(from, 
+      												new PaxosMsg(msg, PaxosMsgType.ACCEPTOR_REJECT));
       }
     }
 
