@@ -490,8 +490,8 @@ public abstract class PaxosNode extends RPCNode {
       	
       	// The accepted proposal number may not match the highest promised number... 
       	// in the case that there have been other promise requests after the first accept
-        // TODO: STEPH Why does the Acceptor promise different values if has
-        // accepted?
+        // TODO: STEPH Why does the Acceptor promise proposal numbers
+        // that are different from it's accepted proposal?
       	PaxosProposal toSend = new PaxosProposal(promisedNum);
       	PaxosMsg sendMsg = new PaxosMsg(PaxosMsgType.ACCEPTOR_IGNORE, msg.roundNum, toSend);
         RPCSendPaxosResponse(from, sendMsg);
