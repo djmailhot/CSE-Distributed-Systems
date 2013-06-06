@@ -153,6 +153,8 @@ public abstract class PaxosNode extends RPCNode {
     int nextRound = 0;
     if(!instances.isEmpty()) {
       nextRound = instances.lastKey() + 1;
+    } else {
+    	nextRound = decidedUpdates.lastKey() + 1;
     }
 
     // spin up a new paxos instance
@@ -170,7 +172,15 @@ public abstract class PaxosNode extends RPCNode {
     // spin down the Paxos instance
     spindownInstance(roundNum);
     // actually commit the update
-    onCommitRequest(clientId, updateMsg);
+  	onCommitRequest(clientId, updateMsg);
+  	// TODO: What happened to the queue of transactions received from the client?
+  	/*
+    if (updateMSg.equals(the_head_of_our_transaction_queue)) {
+    	// remove it from the queue
+    } else {
+    	// propose it again.
+    }
+    */
   }
 
 
@@ -387,8 +397,13 @@ public abstract class PaxosNode extends RPCNode {
           // TODO: STEPH we definitely do not want to switch the value of our
           // proposal's update message, otherwise we lose that update and start
           // trying to propose a different value.... right?
-    			// currProposal = new PaxosProposal(proposalNum, currProposal.clientId, msg.proposal.updateMsg);
-    			currProposal = new PaxosProposal(proposalNum, currProposal.clientId, currProposal.updateMsg);
+      		// TODO: DAVID, we do want to switch. If two or more proposals are made in the 
+      		// same round and no one switches, then it's automatically a standstill. 
+      		// When we learn a value is decided, then we have to compare it to the trasaction in our
+      		// queue to see if it was ours or not. If our original proposal was accepted, pass it up to be
+      		// processed for commit and remove it from the queue. If it wasn't, start another round and propose it agains.
+    			currProposal = new PaxosProposal(proposalNum, currProposal.clientId, msg.proposal.updateMsg);
+    			//currProposal = new PaxosProposal(proposalNum, currProposal.clientId, currProposal.updateMsg);
     		}
     	}
 
@@ -502,6 +517,25 @@ public abstract class PaxosNode extends RPCNode {
           acceptedProposal variable in the Acceptor.  Remember, an Acceptor may 
           be asked to accept multiple proposals.  The acceptedProposal variable
           must be updated accordingly.
+          
+          ---------
+          
+          Yes, the acceptor accepts as many proposals as it is send accept requests. 
+          
+          From the paper:
+          1. A proposer chooses a new proposal number n and sends a request to
+						each member of some set of acceptors, asking it to respond with:
+						(a) A promise never again to accept a proposal numbered less than
+						n, and
+						(b) The proposal with the highest number less than n that it has
+						accepted, if any.
+						I will call such a request a prepare request with number n.
+					2. If the proposer receives the requested responses from a majority of
+						the acceptors, then it can issue a proposal with number n and value
+						v, where v is the value of the highest-numbered proposal among the
+						responses, or is any value selected by the proposer if the responders
+						reported no proposals
+						
         */
       	PaxosProposal toSend;
         if(acceptedProposal == null) {
