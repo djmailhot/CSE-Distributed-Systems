@@ -318,6 +318,15 @@ public abstract class PaxosNode extends RPCNode {
 
     // recieve prepare results
     public void receivePrepareResponse(int from, PaxosMsg msg, boolean accepted) {
+    	// it has already accepted some sort of proposal
+    	// we need to keep the value consistent.
+    	if (msg.proposal != null) {
+    		if (maxProposalNum < msg.proposal.proposalNum) {
+    			maxProposalNum = msg.proposal.proposalNum;
+      		int proposalNum = nextProposalNum(maxProposalNum);
+    			currProposal = new PaxosProposal(proposalNum, currProposal.clientId, msg.proposal.updateMsg);
+    		}
+    	}
 
       if(msg.proposal.proposalNum == currProposal.proposalNum) {
         // if this message is for the current proposal
@@ -358,8 +367,8 @@ public abstract class PaxosNode extends RPCNode {
 
     // send accept requests to all servers
     private void broadcastAcceptRequests(PaxosProposal proposal) {
-      // Send Accepts to every server. 
-      for(int address: ServerList.serverNodes) {
+      // Send Accepts to the majority of nodes that promised.
+      for(int address: promisingAcceptors) {
         // send even to myself
         RPCSendPaxosRequest(address, 
                 new PaxosMsg(PaxosMsgType.PROPOSER_ACCEPT,
@@ -370,13 +379,8 @@ public abstract class PaxosNode extends RPCNode {
 
     // TODO:  Shouldn't the Learner deal with this?
     // get accepted responses from acceptors
-    public void receiveAcceptedResponse(int from, PaxosMsg msg) {
-      // if we have a majority of PROPOSER_ACCEPTS
-      //acceptingAcceptors.add(from);
-      //if(acceptingAcceptors.size() > ServerList.serverNodes.size() / 2) {
-        // BROADCAST THAT THE VALUE IS DECIDED
-      //} // else wait for more accepts
-          
+    public void receiveAcceptIgnoreResponse(int from, PaxosMsg msg) {
+    	// TODO: ask the Paxos mangager to try for another round.          
     }
   }
 
@@ -392,15 +396,15 @@ public abstract class PaxosNode extends RPCNode {
 
     // ACCEPTED proposal (unknown if it is chosen - accepted by anyone else)
     // Initially null when no proposal has been accepted
-    // TODO: should this also be mapped from the round? Think on this. DAVID: thoughts?
     // TODO: Don't think we actually need this...
     // TODO: I think we do, because when we reject a promise, we have to respond
     // with the highest proposal number that we have promised AND the value of the proposal that we
     // have previously accepted. Then the proposer is constrainted to propose with a higher number AND a consistent value.
-//    private PaxosProposal acceptedProposal;
+    private PaxosProposal acceptedProposal;
 
     Acceptor() {
       this.promisedNum = -1;
+      this.acceptedProposal = null;
     }
     
     /**
@@ -410,21 +414,18 @@ public abstract class PaxosNode extends RPCNode {
       if (msg.proposal.proposalNum < promisedNum) {
         // Reject
         // Send a response proposal with the current promise number
-        PaxosProposal promisedProposal = new PaxosProposal(promisedNum);
-      	// TODO: Ahah! here's the place we should also send the currently accepted proposal value.
-        // I've done that now, right? -> David
-        RPCSendPaxosResponse(from, 
-                new PaxosMsg(msg, PaxosMsgType.ACCEPTOR_REJECT, promisedProposal));
-
-      } else if (msg.proposal.proposalNum > promisedNum) {
+      	
+      	// TODO: Problem. The accepted proposal number may not match the highest promised number... 
+      	//       in the case that there have been other promise requests after the first accept
+      	PaxosMsg sendMsg = new PaxosMsg(PaxosMsgType.ACCEPTOR_REJECT, msg.roundNum, acceptedProposal);
+        RPCSendPaxosResponse(from, sendMsg);
+                //new PaxosMsg(msg, PaxosMsgType.ACCEPTOR_REJECT, promisedNum));
+      } else if (msg.currProposalNum > promisedNum) {
         // Promise
         promisedNum = msg.proposal.proposalNum;
-        PaxosProposal promisedProposal = new PaxosProposal(promisedNum);
-        // TODO: send currently accepted proposal here too...
-        // I've done this too now, right? -> David
-        RPCSendPaxosResponse(from,
-                new PaxosMsg(msg, PaxosMsgType.ACCEPTOR_PROMISE, promisedProposal));
-
+      	PaxosMsg sendMsg = new PaxosMsg(PaxosMsgType.ACCEPTOR_PROMISE, msg.roundNum, acceptedProposal);
+        RPCSendPaxosResponse(from, sendMsg);
+                //new PaxosMsg(msg, PaxosMsgType.ACCEPTOR_PROMISE, promisedNum));
       } else { 
         // do nothing for duplicates
       }
@@ -478,8 +479,8 @@ public abstract class PaxosNode extends RPCNode {
     }
     
     // receive the agreed value
-    public void receiveLearnRequest(int from, PaxosMsg msg) {
-      
+    public void receiveAcceptorAcceptedRequest(int from, PaxosMsg msg) {
+      acceptedAcceptors.add(from);
     }
     
     // receive the value
