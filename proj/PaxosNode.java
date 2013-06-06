@@ -611,8 +611,9 @@ public abstract class PaxosNode extends RPCNode {
     // receive the agreed value
     public void receiveAcceptorAcceptedRequest(int from, PaxosMsg msg) {
       Log.i(TAG, String.format("%s receive accepted request", this));
+      Log.i(TAG, "smg: " + msg);
       if(acceptedAcceptors.containsKey(msg.proposal)) {
-      	acceptedAcceptors.get(msg.proposal.updateMsg).add(from);
+      	acceptedAcceptors.get(msg.proposal).add(from);
       } else {
       	Set<Integer> acceptors = new HashSet<Integer>();
       	acceptors.add(from);
