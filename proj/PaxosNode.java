@@ -492,6 +492,10 @@ public abstract class PaxosNode extends RPCNode {
       	// in the case that there have been other promise requests after the first accept
         // TODO: STEPH Why does the Acceptor promise proposal numbers
         // that are different from it's accepted proposal?
+      	// TODO: DAVID, Imagine the scenario where the acceptor promises 5, accepts on that promise, so its accepted proposal
+      	// has number 5, then receives prepare 8. It will propmise 8. Then suppose it receives yet another prepare
+      	// request before it accepts anything else. It's accepted proposal has number 5, but the promised number is
+      	// 8. It needs to return 8 and the value of the accepted proposal. 
       	PaxosProposal toSend = new PaxosProposal(promisedNum);
       	PaxosMsg sendMsg = new PaxosMsg(PaxosMsgType.ACCEPTOR_IGNORE, msg.roundNum, toSend);
         RPCSendPaxosResponse(from, sendMsg);
