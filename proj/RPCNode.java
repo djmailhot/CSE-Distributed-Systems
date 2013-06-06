@@ -95,6 +95,7 @@ public abstract class RPCNode extends RIONode {
 	 *            The address to send to
 	 */
   public void RPCSendPaxosRequest(int destAddr, RPCMsg msg) {
+    Log.i(TAG, String.format("Paxos request to %d of %s", destAddr, msg));
     RPCCallBundle bundle = new RPCCallBundle(msg.getId(), RPCCallType.REQUEST,
                                              RPCMsgType.PAXOS, msg);
     RIOSend(destAddr, Protocol.DATA, RPCCallBundle.serialize(bundle));
@@ -108,6 +109,7 @@ public abstract class RPCNode extends RIONode {
 	 *            The address to send to
 	 */
   public void RPCSendPaxosResponse(int destAddr, RPCMsg msg) {
+    Log.i(TAG, String.format("Paxos response to %d of %s", destAddr, msg));
     RPCCallBundle bundle = new RPCCallBundle(msg.getId(), RPCCallType.RESPONSE,
                                              RPCMsgType.PAXOS, msg);
     RIOSend(destAddr, Protocol.DATA, RPCCallBundle.serialize(bundle));
