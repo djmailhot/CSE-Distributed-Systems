@@ -153,7 +153,7 @@ public abstract class PaxosNode extends RPCNode {
     int nextRound = 0;
     if(!instances.isEmpty()) {
       nextRound = instances.lastKey() + 1;
-    } else {
+    } else if (!instances.isEmpty()){
     	nextRound = decidedUpdates.lastKey() + 1;
     }
 
