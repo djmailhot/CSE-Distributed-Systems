@@ -55,60 +55,11 @@ public abstract class PaxosNode extends RPCNode {
   // Map of round numbers to Instances of Paxos managing that round
   private SortedMap<Integer, PaxosInstance> instances;
 
-  // Concurrency constructs for buffering updates
-  private final Lock queueLock;
-  private final Condition newUpdate;
-  // queue of updates yet to be sent with corresponding client addresses
-  private final Deque<Pair<Integer, RPCMsg>> queuedUpdates;
-
-
   PaxosNode() {
     super();
 
     this.instances = new TreeMap<Integer, PaxosInstance>();
     this.decidedUpdates = new TreeMap<Integer, RPCMsg>();
-
-
-    // keep a queue of updates yet to be sent
-    this.queueLock = new ReentrantLock();
-    this.newUpdate = queueLock.newCondition();
-    this.queuedUpdates = new LinkedList<Pair<Integer, RPCMsg>>();
-
-    Thread updateConsumer = new Thread(new Runnable() {
-      public void run() {
-        queueLock.lock();
-        try {
-          while(true) {
-            newUpdate.await();
-            // if nothing to broadcast or in the middle of proposing, wait
-            if(queuedUpdates.isEmpty()) {
-              continue;
-            }
-
-            // get the next update
-            Pair<Integer, RPCMsg> nextUpdate = queuedUpdates.poll();
-
-            // get the next round to spinup.  For any instance we already have
-            // spun up, we know for sure there is at least one Proposer for
-            // that round because a Proposer always starts a new round.
-            int nextRound = instances.lastKey() + 1;
-
-            // spin up a new paxos instance
-            PaxosInstance instance = spinupInstance(nextRound);
-
-            // have the Proposer make a new proposal
-            instance.proposer.broadcastPrepareRequest(nextUpdate.a, nextUpdate.b);
-          }
-
-        } catch(InterruptedException e) {
-          e.printStackTrace();
-          Log.w(TAG, "Interrupted while attempting to pull the next update");
-        } finally {
-          queueLock.unlock();
-        }
-      }
-    });
-    updateConsumer.start();
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -124,9 +75,7 @@ public abstract class PaxosNode extends RPCNode {
    */
   @Override
   public void onRPCCommitRequest(Integer from, RPCMsg message) {
-    // TODO: This will bypass all in-progress Paxos code
-
-    tryUpdate(from, message, false);
+    tryUpdate(from, message);
   }
 
 	/**
@@ -185,6 +134,8 @@ public abstract class PaxosNode extends RPCNode {
    */
   private void spindownInstance(int roundNum) {
     Log.i(TAG, String.format("Spun down Paxos instance for round %d", roundNum));
+    Log.v(TAG, String.format("Decided value for round %d was %s", 
+                              roundNum, decidedUpdates.get(roundNum)));
     instances.remove(roundNum);
   }
 
@@ -192,29 +143,34 @@ public abstract class PaxosNode extends RPCNode {
   /**
    * Try to propose an update.
    */
-  private void tryUpdate(int from, RPCMsg updateMsg, boolean retry) {
-    queueLock.lock();
-    try {
-      // put it on the queue
-      if(retry) {
-        queuedUpdates.addLast(new Pair<Integer, RPCMsg>(from, updateMsg));
-      } else {
-        queuedUpdates.addFirst(new Pair<Integer, RPCMsg>(from, updateMsg));
-      }
-      // signal that there is a new update to propose
-      newUpdate.signal();
-    } finally {
-      queueLock.unlock();
+  private void tryUpdate(int from, RPCMsg updateMsg) {
+    Log.i(TAG, String.format("IT'S VOTIN' TIME ON BEHALF OF %d", from));
+    Log.v(TAG, String.format("Let's vote on update %s", updateMsg));
+
+    // get the next round to spinup.  For any instance we already have
+    // spun up, we know for sure there is at least one Proposer for
+    // that round because a Proposer always starts a new round.
+    int nextRound = 0;
+    if(!instances.isEmpty()) {
+      nextRound = instances.lastKey() + 1;
     }
+
+    // spin up a new paxos instance
+    PaxosInstance instance = spinupInstance(nextRound);
+
+    // have the Proposer make a new proposal
+    instance.proposer.broadcastPrepareRequest(from, updateMsg);
   }
 
   /**
    * Save a decided update message.
    */
-  private void saveUpdate(int roundNum, RPCMsg updateMsg) {
+  private void saveUpdate(int roundNum, int clientId, RPCMsg updateMsg) {
     decidedUpdates.put(roundNum, updateMsg);
     // spin down the Paxos instance
     spindownInstance(roundNum);
+    // actually commit the update
+    onCommitRequest(clientId, updateMsg);
   }
 
 
@@ -229,7 +185,8 @@ public abstract class PaxosNode extends RPCNode {
    */
   public void onRPCPaxosRequest(Integer from, RPCMsg message) {
     PaxosMsg msg = (PaxosMsg)message;
-    Log.i(TAG, String.format("request from %d with %s", from, msg));
+    Log.i(TAG, String.format("%s request from %d", msg.msgType, from));
+    Log.v(TAG, String.format("%s", msg));
 
     if(decidedUpdates.containsKey(msg.roundNum)) {
       Log.i(TAG, "Request was an old message, should update the sending node.");
@@ -280,7 +237,8 @@ public abstract class PaxosNode extends RPCNode {
    */
   public void onRPCPaxosResponse(Integer from, RPCMsg message) {
     PaxosMsg msg = (PaxosMsg)message;
-    Log.i(TAG, String.format("response from %d with %s", from, msg));
+    Log.i(TAG, String.format("%s response from %d", msg.msgType, from));
+    Log.v(TAG, String.format("%s", msg));
 
     PaxosInstance instance = spinupInstance(msg.roundNum);
 
@@ -322,7 +280,7 @@ public abstract class PaxosNode extends RPCNode {
     protected int currRound; 
 
     public String toString() {
-      return String.format("%s{round %d}", this.getClass().getSimpleName(), currRound);
+      return String.format("<<< %d.%s.%d >>> :", addr, this.getClass().getSimpleName(), currRound);
     }
   }
 
@@ -331,7 +289,6 @@ public abstract class PaxosNode extends RPCNode {
   //////////////////////////////////////////////////////////////////////////
 
   private class Proposer extends AbstractActor {
-    public static final String TAG = "PaxosNode.Proposer";
 
     // The maximum accepted proposal number seen by this node
     private int maxProposalNum;
@@ -368,7 +325,7 @@ public abstract class PaxosNode extends RPCNode {
 
     /**
      * Return the next proposal number for this node based on the
-     * specified max proposal number seen.
+     * current max proposal number seen.
      *
      * The new proposal number is guaranteed to be higher than the passed in
      * max number.
@@ -377,7 +334,7 @@ public abstract class PaxosNode extends RPCNode {
      *                   if this new proposal number is higher than the current
      *                   max proposal number, then maxProposalNum is updated.
      */
-    private int nextProposalNum(int maxProposalNum) {
+    private int nextProposalNum() {
       int numServers = ServerList.serverNodes.size();
       // The +1 is to ensure that our math works out with 0-indexed server
       // addresses.  We want to ensure that the proposal number will always
@@ -387,46 +344,53 @@ public abstract class PaxosNode extends RPCNode {
 
       assert(nextNum > maxProposalNum); // sanity check
 
-      // update the max proposal number to be this new proposal number... maybe
-      maxProposalNum = Math.max(nextNum, maxProposalNum);
+      // update the max proposal number to be this new proposal number
+      maxProposalNum = nextNum;
+      Log.v(TAG, String.format("%s new proposal num %d", this, nextNum));
       return nextNum;
     }
 
 
     // broadcast of proposal to all Acceptors
     public void broadcastPrepareRequest(int from, RPCMsg updateMsg) {
-      Log.v(TAG, String.format("%s broadcast prepare", this));
-      int proposalNum = nextProposalNum(maxProposalNum);
+      Log.i(TAG, String.format("%s broadcast prepare requests", this));
+      int proposalNum = nextProposalNum();
       PaxosProposal proposal = new PaxosProposal(proposalNum, from, updateMsg);
       currProposal = proposal;
 
-      PaxosProposal prepareProposal = new PaxosProposal(proposalNum);
       for(int address: ServerList.serverNodes) {
         // send it even to myself
         // only send the proposal num
         RPCSendPaxosRequest(address, 
                 new PaxosMsg(PaxosMsgType.PROPOSER_PREPARE, 
-                             currRound, prepareProposal));
+                             currRound, proposal));
       }
     }
 
     // recieve prepare results
     public void receivePrepareResponse(int from, PaxosMsg msg) {
-      Log.v(TAG, String.format("%s prepare response", this));
+      Log.i(TAG, String.format("%s receive prepare response", this));
 
       if(currProposal == null) {
         // we have no current proposal, a response is BOGUS
-        Log.w(TAG, "Got a BOGUS prepare response for proposal I never proposed");
+        Log.w(TAG, String.format("%s got BOGUS prepare response for proposal "+
+                                 "they never proposed", this));
         return;
       }
 
     	// it has already accepted some sort of proposal
     	// we need to keep the value consistent.
+      // TODO: STEPH
+      // What do you meeeean about consistent?
+      // I don't understand at all
     	if (msg.proposal != null) {
     		if (maxProposalNum < msg.proposal.proposalNum) {
     			maxProposalNum = msg.proposal.proposalNum;
-      		int proposalNum = nextProposalNum(maxProposalNum);
-    			currProposal = new PaxosProposal(proposalNum, currProposal.clientId, msg.proposal.updateMsg);
+      		int proposalNum = nextProposalNum();
+          // we definitely do not want to switch the value of our proposal's
+          // update message.
+    			// currProposal = new PaxosProposal(proposalNum, currProposal.clientId, msg.proposal.updateMsg);
+    			currProposal = new PaxosProposal(proposalNum, currProposal.clientId, currProposal.updateMsg);
     		}
     	}
 
@@ -440,18 +404,20 @@ public abstract class PaxosNode extends RPCNode {
               broadcastAcceptRequests(currProposal);
             } // else wait for more promises
             break;
+
           case ACCEPTOR_IGNORE:
             rejectingAcceptors.add(from);
 
             // If a majority rejected
             if(rejectingAcceptors.size() > ServerList.serverNodes.size() / 2) {
               // abort the proposal and re-propose
-              tryUpdate(currProposal.clientId, currProposal.updateMsg, true);
+              tryUpdate(currProposal.clientId, currProposal.updateMsg);
 
             } // else wait for more rejects
             break;
+
           default:
-            Log.w(TAG, "Invalid message type recieved for a prepare response");
+            Log.w(TAG, "Invalid message type received for a prepare response");
             break;
         }
       } else if(msg.proposal.proposalNum > currProposal.proposalNum) {
@@ -465,6 +431,7 @@ public abstract class PaxosNode extends RPCNode {
 
     // send accept requests to all servers
     private void broadcastAcceptRequests(PaxosProposal proposal) {
+      Log.i(TAG, String.format("%s broadcast accept requests", this));
       // Send Accepts to the majority of nodes that promised.
       for(int address: promisingAcceptors) {
         // send even to myself
@@ -489,7 +456,6 @@ public abstract class PaxosNode extends RPCNode {
   //////////////////////////////////////////////////////////////////////////
 
   private class Acceptor extends AbstractActor {
-    public static final String TAG = "PaxosNode.Acceptor";
 
     // The proposal number that this node has promised to not accept anything
     // less than
@@ -503,34 +469,39 @@ public abstract class PaxosNode extends RPCNode {
     // have previously accepted. Then the proposer is constrainted to propose with a higher number AND a consistent value.
     // TODO: What do you mean by consistent value?  I thought Paxos was supposed
     // to be value-agnostic?
-    private PaxosProposal acceptedProposal;
+    //private PaxosProposal acceptedProposal;
 
     Acceptor(int currRound) {
       this.currRound = currRound;
       this.promisedNum = -1;
-      this.acceptedProposal = null;
+      //this.acceptedProposal = null;
     }
     
     /**
      * This Acceptor received a request to prepare for a proposal.
      */
     public void receivePrepareRequest(int from, PaxosMsg msg) {
-    	RPCMsg value = acceptedProposal == null ? null : acceptedProposal.updateMsg;
+      Log.i(TAG, String.format("%s receive prepare request", this));
+      // TODO: What the what? Why? Where? When?
+    	// RPCMsg value = acceptedProposal == null ? null : acceptedProposal.updateMsg;
       if (msg.proposal.proposalNum < promisedNum) {
         // Ignore
         // Send a response proposal with the current promise number
       	
       	// The accepted proposal number may not match the highest promised number... 
       	// in the case that there have been other promise requests after the first accept
-      	PaxosProposal toSend = new PaxosProposal(promisedNum, acceptedProposal.clientId, value);
-      	PaxosMsg sendMsg = new PaxosMsg(PaxosMsgType.ACCEPTOR_IGNORE, msg.roundNum, acceptedProposal);
+        // TODO: STEPH Why does the Acceptor promise different values if has
+        // accepted?
+      	PaxosProposal toSend = new PaxosProposal(promisedNum);
+      	PaxosMsg sendMsg = new PaxosMsg(PaxosMsgType.ACCEPTOR_IGNORE, msg.roundNum, toSend);
         RPCSendPaxosResponse(from, sendMsg);
 
       } else if (msg.proposal.proposalNum > promisedNum) {
         // Promise
         promisedNum = msg.proposal.proposalNum;
-      	PaxosProposal toSend = new PaxosProposal(promisedNum, acceptedProposal.clientId, value);
-      	PaxosMsg sendMsg = new PaxosMsg(PaxosMsgType.ACCEPTOR_PROMISE, msg.roundNum, acceptedProposal);
+
+      	PaxosProposal toSend = new PaxosProposal(promisedNum);
+      	PaxosMsg sendMsg = new PaxosMsg(PaxosMsgType.ACCEPTOR_PROMISE, msg.roundNum, toSend);
         RPCSendPaxosResponse(from, sendMsg);
 
       } else { 
@@ -543,6 +514,7 @@ public abstract class PaxosNode extends RPCNode {
      * This Acceptor received a request to accept a proposal.
      */
     public void receiveAcceptRequest(int from, PaxosMsg msg) {
+      Log.i(TAG, String.format("%s receive accept request", this));
       if (msg.proposal.proposalNum == promisedNum) {
       	// TODO: Should this be greater-than-or-equal?
       	// TODO: Can greater-than even ever happen? Maybe not....
@@ -560,8 +532,11 @@ public abstract class PaxosNode extends RPCNode {
       	
       	
       	// TODO: do anything else?
-      	RPCSendPaxosResponse(from, 
-                new PaxosMsg(msg, PaxosMsgType.ACCEPTOR_IGNORE));
+        // TODO: STEPH:
+        // ACCEPTOR_IGNORE messages are negative responses to Prepare requests.
+        // Mixing them with Accept requests is bad news
+      	//RPCSendPaxosResponse(from, 
+        //        new PaxosMsg(msg, PaxosMsgType.ACCEPTOR_IGNORE));
       }
     }
 
@@ -572,7 +547,6 @@ public abstract class PaxosNode extends RPCNode {
   //////////////////////////////////////////////////////////////////////////
 
   private class Learner extends AbstractActor {
-    public static final String TAG = "PaxosNode.Learner";
 
     // Acceptors that responded with an ACCEPTED
     // When this is a majority, broadcast LEARNER_DECIDED information.
@@ -585,6 +559,7 @@ public abstract class PaxosNode extends RPCNode {
     
     // receive the agreed value
     public void receiveAcceptorAcceptedRequest(int from, PaxosMsg msg) {
+      Log.i(TAG, String.format("%s receive accepted request", this));
       if(acceptedAcceptors.containsKey(msg.proposal)) {
       	acceptedAcceptors.get(msg.proposal.updateMsg).add(from);
       } else {
@@ -600,6 +575,7 @@ public abstract class PaxosNode extends RPCNode {
     
     // send accept requests to all servers
     private void broadcastDecidedRequests(PaxosProposal proposal) {
+      Log.i(TAG, String.format("%s broadcast decided requests", this));
       for(int address: ServerList.serverNodes) {
         // send even to myself
         RPCSendPaxosRequest(address, 
@@ -610,7 +586,8 @@ public abstract class PaxosNode extends RPCNode {
     
     // receive the value
     public void receiveDecidedRequest(PaxosProposal proposal) {
-      saveUpdate(currRound, proposal.updateMsg);
+      Log.i(TAG, String.format("%s receive decided request", this));
+      saveUpdate(currRound, proposal.clientId, proposal.updateMsg);
     }
   }
   //-------------------- Paxos Methods End ---------------------------------//
@@ -714,7 +691,9 @@ public abstract class PaxosNode extends RPCNode {
   /**
    * A update proposal to voted on by the Paxos system.
    */
-  private static class PaxosProposal {
+  private static class PaxosProposal implements Serializable {
+    public static final long serialVersionUID = 0L;
+
     // proposal number:  proposalnum = counter * numservers + uniqueserverid
     public final int proposalNum;
     // origin server number

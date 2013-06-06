@@ -8,7 +8,8 @@ public class ServerList {
 	static {
         //serverNodes.add(0);
         serverNodes.add(1);
-        //serverNodes.add(2);
+        serverNodes.add(2);
+        serverNodes.add(3);
   }
 	/*
 	 * Returns true iff n is an address in our server list.

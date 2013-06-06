@@ -1,5 +1,5 @@
 public class Log {
-	static private int mLevel = 0;
+	static private int mLevel = 2;
 	static private boolean mShowLog = true;
 	
 	/**

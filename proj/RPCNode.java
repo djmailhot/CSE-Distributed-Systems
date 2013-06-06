@@ -65,6 +65,7 @@ public abstract class RPCNode extends RIONode {
 	 *            and the filesystem transaction to commit.
 	 */
   public void RPCSendCommitRequest(int destAddr, RPCMsg msg) {
+    Log.i(TAG, String.format("Commit request to %d of %s", destAddr, msg));
     RPCCallBundle bundle = new RPCCallBundle(msg.getId(), RPCCallType.REQUEST,
                                              RPCMsgType.COMMIT, msg);
     RIOSend(destAddr, Protocol.DATA, RPCCallBundle.serialize(bundle));
@@ -82,6 +83,7 @@ public abstract class RPCNode extends RIONode {
 	 *            and the filesystem transaction to commit.
 	 */
   public void RPCSendCommitResponse(int destAddr, RPCMsg msg) {
+    Log.i(TAG, String.format("Commit response to %d of %s", destAddr, msg));
     RPCCallBundle bundle = new RPCCallBundle(msg.getId(), RPCCallType.RESPONSE,
                                              RPCMsgType.COMMIT, msg);
     RIOSend(destAddr, Protocol.DATA, RPCCallBundle.serialize(bundle));
@@ -145,6 +147,7 @@ public abstract class RPCNode extends RIONode {
                 onRPCCommitResponse(from, bundle.msg);
                 break;
             }
+            break;
           case PAXOS:
             switch (bundle.callType) {
               case REQUEST:
@@ -154,6 +157,7 @@ public abstract class RPCNode extends RIONode {
                 onRPCPaxosResponse(from, bundle.msg);
                 break;
             }
+            break;
           default:
             Log.w(TAG, "Received invalid message type");
         }

@@ -1,0 +1,103 @@
+start 0
+start 1
+start 2
+start 3
+time
+0 create steph pass1
+time
+time
+time
+time
+time
+time
+0 create matt pass2
+time
+time
+time
+0 login matt pass2
+time
+time
+time
+time
+time
+time
+time
+time
+0 follow steph
+time
+time
+time
+time
+time
+time
+time
+time
+0 logout
+time
+time
+time
+time
+time
+time
+time
+time
+0 login steph pass1
+time
+time
+time
+time
+time
+time
+time
+time
+0 tweet hello
+time
+time
+time
+time
+time
+time
+time
+time
+0 tweet this is fun
+time
+time
+time
+time
+time
+time
+time
+time
+time
+time
+time
+time
+time
+0 readtweets
+time
+time
+time
+time
+time
+time
+time
+0 logout
+time
+time
+0 login matt pass2
+time
+time 
+time
+time
+time
+time
+0 readtweets
+time
+time
+time
+time
+time
+time
+0 fake_command
+time
+time

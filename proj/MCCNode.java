@@ -24,7 +24,7 @@ import plume.Pair;
  * It uses discrete Transactions to jump from one version to the next.
  */
 public abstract class MCCNode extends PaxosNode {
-  private static final String TAG = "RPCNode";
+  private static final String TAG = "MCCNode";
   private static final String METAFILE = "METAFILE";
   private static final String METAFILE_DELIMITER = "\t";
   private static final String CREDENTIAL_DELIMITER = "\t";
