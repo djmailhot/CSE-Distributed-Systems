@@ -54,12 +54,15 @@ public abstract class PaxosNode extends RPCNode {
 
   // Map of round numbers to Instances of Paxos managing that round
   private SortedMap<Integer, PaxosInstance> instances;
+  
+  private Queue<RPCMsg> transactions;
 
   PaxosNode() {
     super();
 
     this.instances = new TreeMap<Integer, PaxosInstance>();
     this.decidedUpdates = new TreeMap<Integer, RPCMsg>();
+    this.transactions = new LinkedList<RPCMsg>();
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -75,6 +78,9 @@ public abstract class PaxosNode extends RPCNode {
    */
   @Override
   public void onRPCCommitRequest(Integer from, RPCMsg message) {
+  	// Does this keep getting called?
+  	System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! " + from + " " + message);
+  	transactions.add(message);
     tryUpdate(from, message);
   }
 
@@ -94,6 +100,7 @@ public abstract class PaxosNode extends RPCNode {
   @Override
   public void onRPCCommitResponse(Integer from, RPCMsg message) {
     // don't intercept commit responses
+  	System.out.println("!!!!!!!! passingBack " + 0 + " " + message);
     onCommitResponse(from, message);
   }
 
@@ -419,6 +426,7 @@ public abstract class PaxosNode extends RPCNode {
             break;
 
           case ACCEPTOR_IGNORE:
+          	/*
             rejectingAcceptors.add(from);
 
             // If a majority rejected
@@ -428,7 +436,7 @@ public abstract class PaxosNode extends RPCNode {
 
             } // else wait for more rejects
             break;
-
+					*/
           default:
             Log.w(TAG, "Invalid message type received for a prepare response");
             break;
@@ -602,6 +610,8 @@ public abstract class PaxosNode extends RPCNode {
     // Acceptors that responded with an ACCEPTED
     // When this is a majority, broadcast LEARNER_DECIDED information.
     private Map<PaxosProposal, Set<Integer>> acceptedAcceptors;
+    // Dear god please stop broadcasting.
+    private boolean decided = false;
     
     Learner(int currRound) {
       this.currRound = currRound;
@@ -621,7 +631,10 @@ public abstract class PaxosNode extends RPCNode {
       }
       if(acceptedAcceptors.get(msg.proposal).size() > ServerList.serverNodes.size() / 2) {
       	// broadcast decided
-      	broadcastDecidedRequests(msg.proposal);
+      	if (!decided) {
+      		decided = true;
+      		broadcastDecidedRequests(msg.proposal);
+      	}
       }
     }    
     
@@ -639,6 +652,7 @@ public abstract class PaxosNode extends RPCNode {
     // receive the value
     public void receiveDecidedRequest(PaxosProposal proposal) {
       Log.i(TAG, String.format("%s receive decided request", this));
+      decided = true;
       saveUpdate(currRound, proposal.clientId, proposal.updateMsg);
     }
   }
