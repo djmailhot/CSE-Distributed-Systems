@@ -51,10 +51,27 @@ public abstract class PaxosNode extends RPCNode {
 
   // The current round of voting
   private int currRound;
+    
+  // Learner resource
+  // Map of round numbers to chosen proposal
+  private SortedMap<Integer, RPCMsg> decidedUpdates;
 
-  private final Proposer proposer;
-  private final Acceptor acceptor;
-  private final Learner learner;
+
+
+  private SortedMap<Integer, PaxosInstance> instances;
+
+  private class PaxosInstance {
+    public final Proposer proposer;
+    public final Acceptor acceptor;
+    public final Learner learner;
+
+    PaxosInstance() {
+      proposer = new Proposer();
+      acceptor = new Acceptor();
+      learner = new Learner();
+    }
+  }
+
 
   // Concurrency constructs for buffering updates
   private final Lock queueLock;
@@ -62,11 +79,10 @@ public abstract class PaxosNode extends RPCNode {
   // queue of updates yet to be sent with corresponding client addresses
   private final Deque<Pair<Integer, RPCMsg>> queuedUpdates;
 
-
   PaxosNode() {
-    this.proposer = new Proposer();
-    this.acceptor = new Acceptor();
-    this.learner = new Learner();
+    this.instances = new TreeMap<Integer, PaxosInstance>();
+    this.decidedUpdates = new TreeMap<Integer, RPCMsg>();
+
 
     // keep a queue of updates yet to be sent
     this.queueLock = new ReentrantLock();
@@ -80,25 +96,55 @@ public abstract class PaxosNode extends RPCNode {
           while(true) {
             newUpdate.await();
             // if nothing to broadcast or in the middle of proposing, wait
-            if(queuedUpdates.isEmpty() || proposer.isProposing()) {
+            if(queuedUpdates.isEmpty()) {
               continue;
             }
 
             // get the next update
             Pair<Integer, RPCMsg> nextUpdate = queuedUpdates.poll();
 
+            // get the next round to spinup.  For any instance we already have
+            // spun up, we know for sure there is at least one Proposer for
+            // that round because a Proposer always starts a new round.
+            int nextRound = instances.lastKey() + 1;
+
+            // spin up a new paxos instance
+            PaxosInstance instance = spinupInstance(nextRound);
+
             // have the Proposer make a new proposal
-            proposer.broadcastPrepareRequest(nextUpdate.a, nextUpdate.b);
+            instance.proposer.broadcastPrepareRequest(nextUpdate.a, nextUpdate.b);
           }
 
         } catch(InterruptedException e) {
-
+          e.printStackTrace();
+          Log.w(TAG, "Interrupted while attempting to pull the next update");
         } finally {
           queueLock.unlock();
         }
       }
     });
     updateConsumer.start();
+  }
+
+
+  /**
+   * Spin up a Paxos instance for the specified round if it doesn't already
+   * exist.
+   */
+  private PaxosInstance spinupInstance(int roundNum) {
+    PaxosInstance instance = instances.get(roundNum);
+    if(instance == null) {
+      instance = new PaxosInstance();
+      instances.put(roundNum, instance);
+    }
+    return instance;
+  }
+
+  /**
+   * Spin down a Paxos instance for the specified round.
+   */
+  private void spindownInstance(int roundNum) {
+    instances.remove(roundNum);
   }
 
   /**
@@ -170,24 +216,36 @@ public abstract class PaxosNode extends RPCNode {
     PaxosMsg msg = (PaxosMsg)message;
     Log.i(TAG, String.format("request from %d with %s", from, msg));
 
+    if(decidedUpdates.containsKey(msg.roundNum)) {
+      // this is an old message for an old round, so let the node know
+      // that there are updates it needs to catch up on.
+      // TODO: catch up the other node
+      return;
+    }
+
+    PaxosInstance instance = spinupInstance(msg.roundNum);
+
     PaxosMsgType type = msg.msgType;
     switch(type) {
       case PROPOSER_PREPARE: // Acceptor told to PREPARE for a proposal
-        acceptor.receivePrepareRequest(from, msg);
+        instance.acceptor.receivePrepareRequest(from, msg);
         break;
 
       case PROPOSER_ACCEPT: // Acceptor directed to ACCEPT a new value
-        acceptor.receiveAcceptRequest(from, msg);
+        instance.acceptor.receiveAcceptRequest(from, msg);
         break;
         
       // case ACCEPTOR_PROMISE: // should never get this
       // case ACCEPTOR_REJECT: // should never get this
       case ACCEPTOR_ACCEPTED: // Learner notifed that an Acceptor ACCEPTED
-        learner.receiveLearnRequest(from, msg);
+        instance.learner.receiveLearnRequest(from, msg);
         break;
-      case LEARNER_DECIDED: // Proposer notified that a new value has been DECIDED upon
-        // TODO: access the Proposer node
-        
+
+      case LEARNER_DECIDED: // notified that a new value has been DECIDED upon
+        // log the decided value
+        decidedUpdates.put(msg.roundNum, msg.proposal.updateMsg);
+        // spin down the Paxos instance
+        spindownInstance(msg.roundNum);
       case UPDATE: // Learner queried to provide all updates committed since the
                    // attached proposal
                    // NOTE: this is how a node will update state after a restart
@@ -210,16 +268,18 @@ public abstract class PaxosNode extends RPCNode {
     PaxosMsg msg = (PaxosMsg)message;
     Log.i(TAG, String.format("response from %d with %s", from, msg));
 
+    PaxosInstance instance = spinupInstance(msg.roundNum);
+
     PaxosMsgType type = msg.msgType;
     switch(type) {
       // case PROPOSER_PREPARE: // should never get this
       // case PROPOSER_ACCEPT: // should never get this
       case ACCEPTOR_PROMISE: // Proposer heard back with a PROMISE in response to a PREPARE
         // TODO: How to distinguish PROMISEs from different voting rounds?
-        proposer.receivePrepareResponse(from, msg, true);
+        instance.proposer.receivePrepareResponse(from, msg, true);
         break;
       case ACCEPTOR_REJECT: // Proposer heard back with a REJECT in response to a PREPARE
-        proposer.receivePrepareResponse(from, msg, false);
+        instance.proposer.receivePrepareResponse(from, msg, false);
         break;
         
       // case ACCEPTOR_ACCEPTED: // should never get this
