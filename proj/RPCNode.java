@@ -41,6 +41,7 @@ public abstract class RPCNode extends RIONode {
 	// startup routines
 	//----------------------------------------------------------------------------
 
+
   public RPCNode() {
     super();
   }

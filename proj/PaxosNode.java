@@ -49,6 +49,8 @@ public abstract class PaxosNode extends RPCNode {
    *    learn an update.
    */
 
+  private final Set<Integer> receivedMsgIds;
+
   // Map of round numbers to chosen proposal
   private SortedMap<Integer, RPCMsg> decidedUpdates;
 
@@ -63,6 +65,16 @@ public abstract class PaxosNode extends RPCNode {
     this.instances = new TreeMap<Integer, PaxosInstance>();
     this.decidedUpdates = new TreeMap<Integer, RPCMsg>();
     this.transactions = new LinkedList<RPCMsg>();
+    this.receivedMsgIds = new HashSet<Integer>();
+  }
+
+  public void start() {
+    super.start();
+
+    instances.clear();
+    decidedUpdates.clear();
+    transactions.clear();
+    receivedMsgIds.clear();
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -101,6 +113,15 @@ public abstract class PaxosNode extends RPCNode {
   public void onRPCCommitResponse(Integer from, RPCMsg message) {
     // don't intercept commit responses
   	System.out.println("!!!!!!!! passingBack " + 0 + " " + message);
+
+    int msgId = message.getId();
+    if(receivedMsgIds.contains(msgId)) {
+      // Don't process duplicate messages
+      Log.d(TAG, String.format("Received duplicate message from %d of %s", from, message));
+      return;
+    }
+    receivedMsgIds.add(msgId);
+
     onCommitResponse(from, message);
   }
 

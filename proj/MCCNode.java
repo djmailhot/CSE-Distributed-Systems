@@ -874,7 +874,7 @@ public void start() {
     MCCMsg(MCCMsg originalRequest, List<MCCFileData> filelist,
               boolean success, Pair<Boolean,byte[]> securityResponse) {
       this(originalRequest.id, filelist, originalRequest.transaction, 
-           false, new Pair<Boolean,byte[]>(true, null));
+           success, new Pair<Boolean,byte[]>(true, null));
     }
 
     /**
