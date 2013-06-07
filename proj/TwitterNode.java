@@ -17,6 +17,7 @@ import plume.Pair;
  * - There are no malicious clients. (I.E. no one will delete the currently logged in user.)
  */
 public class TwitterNode extends MCCNode {
+	private static final String TAG = "TWITTERNODE";
 	private String username = null;
 	private byte[] userToken = null;
 	private int DEST_ADDR = 1;
@@ -393,6 +394,7 @@ public class TwitterNode extends MCCNode {
 			switch(op){		
 			case CREATE: 
 				System.out.println("You created user " + extraInfo.get(0));
+				Log.i(TAG, "Successfully created user. Waterbottle.");
 				pollCommand(tid);
 				break;
 			case LOGIN: 
@@ -467,6 +469,7 @@ public class TwitterNode extends MCCNode {
 				try {
 					if (exists(user + "_followers.txt")) {
 						System.out.println("User " + user + " already exists."); // Abort
+						Log.i(TAG, "Unsuccessfully created user. Turtle.");
 						pollCommand(tid);
 					} else {
 						doCommand("create " + extraInfo.get(0), tid); // Retry the transaction.
