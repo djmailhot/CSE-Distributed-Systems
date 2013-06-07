@@ -30,7 +30,7 @@ public class TwitterNode extends MCCNode {
 	Queue<Pair<String, Integer>> commandQueue = new LinkedList<Pair<String, Integer>>();
 	
 	// Ignore disk crashes
-  public static double getFailureRate() { return 0/100.0; }
+  public static double getFailureRate() { return 5/100.0; }
 	public static double getDropRate() { return 0/100.0; }
 	//public static double getDelayRate() { return 0/100.0; }
 	public static double getRecoveryRate() { return 100/100.0; }

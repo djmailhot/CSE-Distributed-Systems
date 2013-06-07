@@ -54,7 +54,6 @@ public abstract class MCCNode extends PaxosNode {
   }
 
   public void start() {
-    super.start();
     this.TAG = String.format("MCCNode.%d", addr);
 
     this.committedTids.clear();

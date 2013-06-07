@@ -90,8 +90,8 @@ public abstract class RPCNode extends RIONode {
   }
 
   public void start() {
-    super.start();
     this.TAG = String.format("RPCNode.%d", addr);
+    super.start();
   }
 
 	//----------------------------------------------------------------------------

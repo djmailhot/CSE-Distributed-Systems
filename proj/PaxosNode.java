@@ -68,8 +68,6 @@ public abstract class PaxosNode extends RPCNode {
   // The last round who's update was processed (i.e. passed up a layer)
   // Updates should be applied in order
   private int lastProcessedRound; 
-  // Map of round numbers to submitted proposals
-  private SortedMap<Integer, Pair<Integer, RPCMsg>> submittedUpdates;
   // Map of round numbers to chosen proposal
   private SortedMap<Integer, Pair<Integer, RPCMsg>> decidedUpdates;
 
@@ -88,12 +86,10 @@ public abstract class PaxosNode extends RPCNode {
 
     this.lastProcessedRound = -1;
     this.decidedUpdates = new TreeMap<Integer, Pair<Integer, RPCMsg>>();
-    this.submittedUpdates = new TreeMap<Integer, Pair<Integer, RPCMsg>>();
     this.instances = new TreeMap<Integer, PaxosInstance>();
   }
 
   public void start() {
-    super.start();
     this.TAG = String.format("PaxosNode.%d", addr);
 
     receivedRequestMsgIds.clear();
@@ -101,54 +97,24 @@ public abstract class PaxosNode extends RPCNode {
 
     lastProcessedRound = -1;
     decidedUpdates.clear();
-    submittedUpdates.clear();
     instances.clear();
 
     try {
       if(nfsService.exists(PAXOSFILE)) {
+        // We know we are recovering!
+
         List<String> lines = nfsService.read(PAXOSFILE);
         int index = 0;
 
         lastProcessedRound = Integer.parseInt(lines.get(index));
 
-        index++;
-        while(index < lines.size()) {
-          String line = lines.get(index);
-          line = line.trim();
-          // if the empty string
-          if(line.length() == 0) {
-            index++;
-            continue;
-          }
-
-          if(line.startsWith(INDICATOR_DECIDED)) {
-            String token = line.substring(INDICATOR_DECIDED.length() - 1);
-            String[] subtokens = token.split(PAXOSFILE_DELIMITER);
-            int roundNum = Integer.parseInt(subtokens[0]);
-            int clientId = Integer.parseInt(subtokens[1]);
-
-            String bytes = lines.get(index + 1);
-            RPCMsg msg = RPCMsg.deserialize(Utility.stringToByteArray(bytes));
-
-            decidedUpdates.put(roundNum, new Pair<Integer, RPCMsg>(clientId, msg));
-
-            index += 2;
-          } else if(line.startsWith(INDICATOR_SUBMITTED)) {
-            String token = line.substring(INDICATOR_SUBMITTED.length() - 1);
-            String[] subtokens = token.split(PAXOSFILE_DELIMITER);
-            int roundNum = Integer.parseInt(subtokens[0]);
-            int clientId = Integer.parseInt(subtokens[1]);
-
-            String bytes = lines.get(index + 1);
-            RPCMsg msg = RPCMsg.deserialize(Utility.stringToByteArray(bytes));
-
-            submittedUpdates.put(roundNum, new Pair<Integer, RPCMsg>(clientId, msg));
-
-            index += 2;
-          } else {
-            throw new IllegalStateException("Paxosfile format corrupted");
+        // Query all other nodes for updates
+        for(Integer address : ServerList.serverNodes) {
+          if(address != addr) {
+            RPCSendPaxosRequest(address, new PaxosMsg(PaxosMsgType.UPDATE, lastProcessedRound, null));
           }
         }
+
       }
     } catch(IOException e) {
       e.printStackTrace();
@@ -159,9 +125,10 @@ public abstract class PaxosNode extends RPCNode {
       throw new IllegalStateException("Paxosfile format corrupted");
     }
 
-    Log.i(TAG, String.format("read in PAXOSFILE, setting to round %d\n"+
-                             "decided %s\nsubmitted %s",
-                             lastProcessedRound, decidedUpdates, submittedUpdates));
+    Log.i(TAG, String.format("read in PAXOSFILE, setting to round %d",
+                             lastProcessedRound));
+
+    super.start();
   }
 
 
@@ -170,7 +137,7 @@ public abstract class PaxosNode extends RPCNode {
     StringBuilder data = new StringBuilder();
 
     data.append(String.format("%d\n", lastProcessedRound));
-
+/*
     for(Integer roundNum : decidedUpdates.keySet()) {
       Pair<Integer, RPCMsg> update = decidedUpdates.get(roundNum);
 
@@ -189,6 +156,7 @@ public abstract class PaxosNode extends RPCNode {
       byte[] bytes = RPCMsg.serialize(update.b);
       data.append(String.format("%s\n", Arrays.toString(bytes)));
     }
+    */
 
     nfsService.write(PAXOSFILE, data.toString());
   }
@@ -313,9 +281,6 @@ public abstract class PaxosNode extends RPCNode {
     nextRound = Math.max(nextRound, (decidedUpdates.isEmpty()) ? -1 : decidedUpdates.lastKey());
     nextRound++;
 
-    // keep track of submitted updates
-    submittedUpdates.put(nextRound, new Pair<Integer, RPCMsg>(from, updateMsg));
-
     try {
       // write our new state
       writeState();
@@ -336,7 +301,6 @@ public abstract class PaxosNode extends RPCNode {
    * Retry proposing an update.
    */
   private void retryUpdate(int from, RPCMsg updateMsg, int oldRoundNum) {
-    submittedUpdates.remove(oldRoundNum);
     tryUpdate(from, updateMsg);
   }
 
@@ -345,7 +309,6 @@ public abstract class PaxosNode extends RPCNode {
    */
   private void saveUpdate(int roundNum, int clientId, RPCMsg updateMsg) {
     decidedUpdates.put(roundNum, new Pair<Integer, RPCMsg>(clientId, updateMsg));
-    submittedUpdates.remove(roundNum);
 
     // spin down the Paxos instance
     spindownInstance(roundNum);
@@ -399,11 +362,29 @@ public abstract class PaxosNode extends RPCNode {
     Log.v(TAG, String.format("%s", msg));
 
     if(decidedUpdates.containsKey(msg.roundNum)) {
-      Log.i(TAG, "Request was an old message, should update the sending node.");
-      // this is an old message for an old round, so let the node know
-      // that there are updates it needs to catch up on.
-      // TODO: catch up the other node
-      return;
+
+      if(msg.msgType == PaxosMsgType.UPDATE) {
+        // queried to provide all updates committed since the attached proposal num
+        // catch up the other node
+        Log.v(TAG, "Request was an update request.  GIVE THEM ALLLL THE UPDATES");
+
+        int lastProcessedRound = msg.roundNum;
+        for(Integer roundNum : decidedUpdates.keySet()) {
+          if(roundNum > lastProcessedRound) {
+            Pair<Integer, RPCMsg> update = decidedUpdates.get(roundNum);
+            PaxosProposal proposal = new PaxosProposal(-1, update.a, update.b);
+
+            Log.d(TAG, String.format("Sending UPDATE of %s", proposal));
+            RPCSendPaxosResponse(from, 
+                    new PaxosMsg(msg, roundNum, proposal));
+          }
+        }
+
+      } else {
+        Log.i(TAG, "Request was an old message.");
+        // this is an old message for an old round
+        return;
+      }
     }
 
     PaxosInstance instance = spinupInstance(msg.roundNum);
@@ -428,9 +409,6 @@ public abstract class PaxosNode extends RPCNode {
         instance.proposer.receiveDecidedRequest(msg.proposal);
         break;
 
-      case UPDATE: // Learner queried to provide all updates committed since the
-                   // attached proposal
-                   // NOTE: this is how a node will update state after a restart
       default:
         Log.w(TAG, "Invalid PaxosMsgType on a request");
     }
@@ -450,6 +428,11 @@ public abstract class PaxosNode extends RPCNode {
     Log.i(TAG, String.format("%s response from %d", msg.msgType, from));
     Log.v(TAG, String.format("%s", msg));
 
+    if(msg.msgType == PaxosMsgType.UPDATE) {
+      // node receiving a catch-up update
+      saveUpdate(msg.roundNum, msg.proposal.clientId, msg.proposal.updateMsg);
+    }
+
     PaxosInstance instance = spinupInstance(msg.roundNum);
 
     PaxosMsgType type = msg.msgType;
@@ -463,8 +446,6 @@ public abstract class PaxosNode extends RPCNode {
         
       // case ACCEPTOR_ACCEPTED: // should never get this
       // case LEARNER_DECIDED: // should never get this
-      case UPDATE: // node receiving a catch-up proposal update
-                   // NOTE: this is how a node will update state after a restart
       default:
         Log.w(TAG, "Invalid PaxosMsgType on a response");
     }
@@ -958,6 +939,12 @@ public abstract class PaxosNode extends RPCNode {
              PaxosProposal newProposal) {
       this(originalRequest.id, msgType, 
            originalRequest.roundNum, newProposal);
+    }
+
+    PaxosMsg(PaxosMsg originalRequest, int roundNum,
+             PaxosProposal newProposal) {
+      this(originalRequest.id, originalRequest.msgType, 
+           roundNum, newProposal);
     }
 
     /**
