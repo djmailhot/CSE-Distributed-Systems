@@ -417,6 +417,7 @@ public class TwitterNode extends MCCNode {
 			case LOGIN: 
 				username = extraInfo.get(0);
 				userToken = securityResponse.b;
+        String userTokenString = (userToken != null) ? Utility.bytesToHexString(userToken) : null;
 				String filename = username + "_followers.txt";
 				try {
 					if (exists(filename)) {
@@ -424,7 +425,7 @@ public class TwitterNode extends MCCNode {
 						
             Log.d(TAG, String.format("SECURITY response %s", securityResponse));
 						nfsService.delete(USER_FILE);
-			            nfsService.append(USER_FILE, username + "\n" + Utility.bytesToHexString(userToken)); 
+			            nfsService.append(USER_FILE, username + "\n" + userTokenString); 
 						
 					} else {
 						nfsService.delete(USER_FILE);
