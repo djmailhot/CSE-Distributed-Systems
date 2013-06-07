@@ -18,7 +18,6 @@ import plume.Pair;
  * The PaxosNode maintains the PAXOS voting state machine.
  */
 public abstract class PaxosNode extends RPCNode {
-  private final String TAG;
 
   //---------------------------------------------------------------------------
   //---------------------------------------------------------------------------
@@ -52,6 +51,8 @@ public abstract class PaxosNode extends RPCNode {
   private final Set<Integer> receivedRequestMsgIds;
   private final Set<Integer> receivedResponseMsgIds;
 
+  private String TAG;
+
   // Map of round numbers to chosen proposal
   private SortedMap<Integer, RPCMsg> decidedUpdates;
 
@@ -62,7 +63,6 @@ public abstract class PaxosNode extends RPCNode {
 
   PaxosNode() {
     super();
-    this.TAG = String.format("PaxosNode.%d", addr);
 
     this.instances = new TreeMap<Integer, PaxosInstance>();
     this.decidedUpdates = new TreeMap<Integer, RPCMsg>();
@@ -73,6 +73,7 @@ public abstract class PaxosNode extends RPCNode {
 
   public void start() {
     super.start();
+    this.TAG = String.format("PaxosNode.%d", addr);
 
     instances.clear();
     decidedUpdates.clear();

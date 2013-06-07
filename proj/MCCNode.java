@@ -29,7 +29,7 @@ public abstract class MCCNode extends PaxosNode {
   private static final String CREDENTIAL_DELIMITER = "\t";
   private static final String VERSION_DELIMITER = "@";
 
-  private final String TAG;
+  private String TAG;
   protected final NFSService nfsService;
   
   private Set<Integer> committedTids;
@@ -48,7 +48,6 @@ public abstract class MCCNode extends PaxosNode {
    */
   public MCCNode() {
     super();
-    this.TAG = String.format("MCCNode.%d", addr);
 
     this.nfsService = new NFSService(this);
     this.committedTids = new HashSet<Integer>();
@@ -56,7 +55,10 @@ public abstract class MCCNode extends PaxosNode {
     this.userCredentials = new HashMap<String, Pair<byte[],byte[]>>();
   }
 
-public void start() {
+  public void start() {
+    super.start();
+    this.TAG = String.format("MCCNode.%d", addr);
+
     this.committedTids.clear();
     this.fileVersions.clear();
     this.userCredentials.clear();
