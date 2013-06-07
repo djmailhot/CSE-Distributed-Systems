@@ -4,23 +4,7 @@ start 2
 start 3
 start 4
 time
-0 create steph pass1
-time
-time
-time
-time
-time
-time
-time
 0 create matt pass2
-time
-time
-time
-time
-time
-time
-time
-time
 0 login matt pass2
 time
 time
@@ -31,6 +15,8 @@ time
 time
 time
 time
+time
+4 create steph pass1
 0 follow steph
 time
 time
@@ -39,7 +25,6 @@ time
 time
 time
 time
-0 logout
 time
 time
 time
@@ -47,17 +32,10 @@ time
 time
 time
 time
+4 login steph pass1
 time
-0 login steph pass1
+4 tweet hello
 time
-time
-time
-time
-time
-time
-time
-time
-0 tweet pandas!
 time
 time
 time

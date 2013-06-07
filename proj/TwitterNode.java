@@ -20,7 +20,6 @@ public class TwitterNode extends MCCNode {
 	private String TAG;
 	private String username = null;
 	private byte[] userToken = null;
-	private int DEST_ADDR = 1;
 	private ClientCommandLogger ccl;
 	
 	private String TWEET_FILE = "current_tweets.txt";
@@ -139,8 +138,6 @@ public class TwitterNode extends MCCNode {
 			return true;
 		} else if (commandName.equals("create")) {
 			Log.i(TAG, "DO COMMAND CREATE");
-			Exception ex = new RuntimeException();
-			ex.printStackTrace();
 			offerIfUnique(new Pair(command, transactionId));
 				if (waitingForResponse) {
 					System.out.println("Please wait!!");
@@ -260,7 +257,7 @@ public class TwitterNode extends MCCNode {
 		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId, this.userToken);
 		b.createFile_newUser(filename, user, password);
 		
-		submitTransaction(DEST_ADDR, b.build());
+		submitTransaction(b.build());
 		Log.i(TAG, "SENDING SUBMIT TRANSACTION FOR CREATE USER: 	" + user);
 		System.out.println("create user commit sent"); 
 	}
@@ -277,7 +274,7 @@ public class TwitterNode extends MCCNode {
 		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId,(user + "|" + password).getBytes());
 		b.touchFile(filename);
 		
-		submitTransaction(DEST_ADDR, b.build());
+		submitTransaction(b.build());
 		System.out.println("login user commit sent"); 
 	}
 	
@@ -307,7 +304,7 @@ public class TwitterNode extends MCCNode {
 			}
 			mapUUIDs(transactionId, TwitterOp.TWEET, Arrays.asList(tweet));
 			
-			submitTransaction(DEST_ADDR, b.build());
+			submitTransaction(b.build());
 			System.out.println("read tweets commit sent");
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -330,7 +327,7 @@ public class TwitterNode extends MCCNode {
 			b.touchFile(filename);
 			b.deleteFile(filename);
 			
-			submitTransaction(DEST_ADDR, b.build());
+			submitTransaction(b.build());
 			System.out.println("read tweets commit sent");
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -347,7 +344,7 @@ public class TwitterNode extends MCCNode {
 			
 			mapUUIDs(transactionId, TwitterOp.FOLLOW, Arrays.asList(followUserName));
 			
-			submitTransaction(DEST_ADDR, b.build());
+			submitTransaction(b.build());
 			System.out.println("follow " + followUserName + " commit sent");
 	}
 	
@@ -360,7 +357,7 @@ public class TwitterNode extends MCCNode {
 		
 		mapUUIDs(transactionId, TwitterOp.UNFOLLOW, Arrays.asList(unfollowUserName));
 		
-		submitTransaction(DEST_ADDR, b.build());
+		submitTransaction(b.build());
 		System.out.println("unfollow " + unfollowUserName + " commit sent"); 
 	}
 	
@@ -373,7 +370,7 @@ public class TwitterNode extends MCCNode {
 		
 		mapUUIDs(transactionId, TwitterOp.BLOCK, Arrays.asList(blockUserName));
 		
-		submitTransaction(DEST_ADDR, b.build());
+		submitTransaction(b.build());
 		System.out.println("block " + blockUserName + " commit sent"); 
 	}
 	

@@ -30,7 +30,6 @@ public abstract class MCCNode extends PaxosNode {
   private static final String VERSION_DELIMITER = "@";
 
   private String TAG;
-  protected final NFSService nfsService;
   
   private Set<Integer> committedTids;
   private Map<String, Pair<Integer, Boolean>> fileVersions;
@@ -49,7 +48,6 @@ public abstract class MCCNode extends PaxosNode {
   public MCCNode() {
     super();
 
-    this.nfsService = new NFSService(this);
     this.committedTids = new HashSet<Integer>();
     this.fileVersions = new HashMap<String, Pair<Integer, Boolean>>(); // filename, (version, deleted)
     this.userCredentials = new HashMap<String, Pair<byte[],byte[]>>();
@@ -329,6 +327,9 @@ public abstract class MCCNode extends PaxosNode {
       throw new RuntimeException("File system failure on cache update");
     } 
 
+    if(success) {
+      committedTids.add(transaction.tid);
+    }
     Log.i(TAG, String.format("Commit %d actually committed? %s",
           transaction.tid, success));
     return success;
@@ -553,19 +554,19 @@ public abstract class MCCNode extends PaxosNode {
 	//----------------------------------------------------------------------------
 
   /**
-   * Submit the specified transaction for committing on the specified remote 
-   * node.
+   * Submit the specified transaction for committing to the server backend.
    *
-   * @param destAddr the address of the target remote node.
    * @param transaction the filesystem transaction to commit.
    *
    * Will recive a response through the onMCCResponse callback method.
    */
-  public void submitTransaction(int destAddr, NFSTransaction transaction) {
-    Log.i(TAG, String.format("Commit submission to %d for transaction %s",
+  public void submitTransaction(NFSTransaction transaction) {
+    int destAddr = ServerList.getAServerAddr();
+    Log.i(TAG, String.format("Commit submission to %d for %s",
                             destAddr, transaction));
     List<MCCFileData> filedataCheck = getCurrentVersions();
     MCCMsg msg = new MCCMsg(filedataCheck, transaction);
+
     RPCSendCommitRequest(destAddr, msg);
   }
 
@@ -600,7 +601,12 @@ public abstract class MCCNode extends PaxosNode {
     boolean success = msg.success;
     Pair<Boolean,byte[]> securityResponse = 
                   new Pair<Boolean,byte[]>(msg.securityFlag, msg.securityCred);
-    if(success && securityResponse.a) {
+
+    if(committedTids.contains(msg.transaction.tid)) {
+      // Already committed this transaction, so do nothing
+      Log.v(TAG, "DUPLICATE!  WHO DO THESE GODS THINK THEY ARE");
+
+    } else if(success && securityResponse.a) {
       // if successful, apply updates locally
       Log.v(TAG, "SUCCESS!  HALLELUJAH TO THE GODS ALMIGHTY");
 
@@ -857,7 +863,7 @@ public abstract class MCCNode extends PaxosNode {
   /**
    * MCC message to send over RPC
    */
-  protected static class MCCMsg implements RPCMsg {
+  protected static class MCCMsg extends RPCMsg {
     public static final long serialVersionUID = 0L;
 
     public final int id;
@@ -913,7 +919,8 @@ public abstract class MCCNode extends PaxosNode {
     }
 
     public String toString() {
-      return String.format("MCCMsg{%d, success? %s}", id, success);
+      return String.format("MCCMsg{%d, tid %d, success? %s}", 
+                            id, transaction.tid, success);
     }
   }
 

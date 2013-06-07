@@ -28,13 +28,56 @@ public abstract class RPCNode extends RIONode {
   /**
    * Defines an interface for a message meant to be sent over RPC.
    */
-  public interface RPCMsg extends Serializable {
+  public static abstract class RPCMsg implements Serializable {
     /**
      * Returns an unique id that is shared between Request and Response
      * messages.
      */
-    public int getId();
+    public abstract int getId();
 
+    public static byte[] serialize(RPCMsg msg) {
+    	ByteArrayOutputStream bos = new ByteArrayOutputStream();
+    	ObjectOutput out = null;
+    	try {
+    	  out = new ObjectOutputStream(bos);   
+    	  out.writeObject(msg);
+    	  byte[] bytes = bos.toByteArray();
+    	  return bytes;
+    	} catch (IOException e) {
+				e.printStackTrace();
+			} finally {
+    	  try {
+      	  out.close();
+					bos.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+    	}
+    	return null;
+    }
+    
+    public static RPCMsg deserialize(byte[] bytes) {
+    	ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
+    	ObjectInput in = null;
+    	try {
+    	  in = new ObjectInputStream(bis);
+    	  Object o = in.readObject(); 
+    	  RPCMsg msg = (RPCMsg) o;
+    	  return msg;
+    	} catch (IOException e) {
+				e.printStackTrace();
+			} catch (ClassNotFoundException e) {
+			e.printStackTrace();
+		} finally {
+    	  try {
+					bis.close();
+	    	  in.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+    	}
+      return null;
+    }
   }
 
 	//----------------------------------------------------------------------------
