@@ -895,7 +895,7 @@ public void start() {
     }
 
     public String toString() {
-      return String.format("MCCMsg{%d, success? %s}", transaction.tid, success);
+      return String.format("MCCMsg{%d, success? %s}", id, success);
     }
   }
 

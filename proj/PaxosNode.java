@@ -49,7 +49,8 @@ public abstract class PaxosNode extends RPCNode {
    *    learn an update.
    */
 
-  private final Set<Integer> receivedMsgIds;
+  private final Set<Integer> receivedRequestMsgIds;
+  private final Set<Integer> receivedResponseMsgIds;
 
   // Map of round numbers to chosen proposal
   private SortedMap<Integer, RPCMsg> decidedUpdates;
@@ -65,7 +66,8 @@ public abstract class PaxosNode extends RPCNode {
     this.instances = new TreeMap<Integer, PaxosInstance>();
     this.decidedUpdates = new TreeMap<Integer, RPCMsg>();
     this.transactions = new LinkedList<RPCMsg>();
-    this.receivedMsgIds = new HashSet<Integer>();
+    this.receivedRequestMsgIds = new HashSet<Integer>();
+    this.receivedResponseMsgIds = new HashSet<Integer>();
   }
 
   public void start() {
@@ -74,7 +76,8 @@ public abstract class PaxosNode extends RPCNode {
     instances.clear();
     decidedUpdates.clear();
     transactions.clear();
-    receivedMsgIds.clear();
+    receivedRequestMsgIds.clear();
+    receivedResponseMsgIds.clear();
   }
 
   //////////////////////////////////////////////////////////////////////////////
@@ -92,6 +95,16 @@ public abstract class PaxosNode extends RPCNode {
   public void onRPCCommitRequest(Integer from, RPCMsg message) {
   	// Does this keep getting called?
   	System.out.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! " + from + " " + message);
+    int msgId = message.getId();
+    Log.d(TAG, String.format("already received requests %s", receivedRequestMsgIds));
+    if(receivedRequestMsgIds.contains(msgId)) {
+      // Don't process duplicate messages
+      Log.d(TAG, String.format("Received duplicate Commit Request message from %d of %s", from, message));
+      return;
+    }
+    receivedRequestMsgIds.add(msgId);
+
+    Log.v(TAG, String.format("New update to vote on from %d of %s", from, message));
   	transactions.add(message);
     tryUpdate(from, message);
   }
@@ -115,12 +128,13 @@ public abstract class PaxosNode extends RPCNode {
   	System.out.println("!!!!!!!! passingBack " + 0 + " " + message);
 
     int msgId = message.getId();
-    if(receivedMsgIds.contains(msgId)) {
+    Log.d(TAG, String.format("already received responses %s", receivedResponseMsgIds));
+    if(receivedResponseMsgIds.contains(msgId)) {
       // Don't process duplicate messages
-      Log.d(TAG, String.format("Received duplicate message from %d of %s", from, message));
+      Log.d(TAG, String.format("Received duplicate Commit Response message from %d of %s", from, message));
       return;
     }
-    receivedMsgIds.add(msgId);
+    receivedResponseMsgIds.add(msgId);
 
     onCommitResponse(from, message);
   }
@@ -179,11 +193,9 @@ public abstract class PaxosNode extends RPCNode {
     // spun up, we know for sure there is at least one Proposer for
     // that round because a Proposer always starts a new round.
     int nextRound = 0;
-    if(!instances.isEmpty()) {
-      nextRound = instances.lastKey() + 1;
-    } else if (!instances.isEmpty()){
-    	nextRound = decidedUpdates.lastKey() + 1;
-    }
+    nextRound = Math.max(nextRound, (instances.isEmpty()) ? 0 : instances.lastKey());
+    nextRound = Math.max(nextRound, (decidedUpdates.isEmpty()) ? 0 : decidedUpdates.lastKey());
+    nextRound++;
 
     // spin up a new paxos instance
     PaxosInstance instance = spinupInstance(nextRound);
@@ -285,12 +297,11 @@ public abstract class PaxosNode extends RPCNode {
       // case PROPOSER_PREPARE: // should never get this
       // case PROPOSER_ACCEPT: // should never get this
       case ACCEPTOR_PROMISE: // Proposer heard back with a PROMISE in response to a PREPARE
-      case ACCEPTOR_IGNORE: // Proposer heard back with a REJECT in response to a PREPARE
+      case ACCEPTOR_REJECT: // Proposer heard back with a REJECT in response to a PREPARE
         instance.proposer.receivePrepareResponse(from, msg);
         break;
         
       // case ACCEPTOR_ACCEPTED: // should never get this
-      // case ACCEPTOR_IGNORE: // should never get this
       // case LEARNER_DECIDED: // should never get this
       case UPDATE: // node receiving a catch-up proposal update
                    // NOTE: this is how a node will update state after a restart
@@ -439,6 +450,10 @@ public abstract class PaxosNode extends RPCNode {
         // if this message is for the current proposal
         switch(msg.msgType) {
           case ACCEPTOR_PROMISE:
+            Log.d(TAG, String.format("%s, %d promises out of %s servers", 
+                                      this, promisingAcceptors.size(),
+                                      ServerList.serverNodes.size()));
+
             promisingAcceptors.add(from);
             if(promisingAcceptors.size() > ServerList.serverNodes.size() / 2) {
               // send an ACCEPT request to all other servers
@@ -446,18 +461,23 @@ public abstract class PaxosNode extends RPCNode {
             } // else wait for more promises
             break;
 
-          case ACCEPTOR_IGNORE:
-          	/*
+          case ACCEPTOR_REJECT:
+            Log.d(TAG, String.format("%s, %d rejects out of %s servers", 
+                                      this, rejectingAcceptors.size(),
+                                      ServerList.serverNodes.size()));
+
             rejectingAcceptors.add(from);
 
             // If a majority rejected
             if(rejectingAcceptors.size() > ServerList.serverNodes.size() / 2) {
+              Log.v(TAG, String.format("%s, Retrying in a new round message update %s", 
+                                        this, currProposal.updateMsg));
               // abort the proposal and re-propose
               tryUpdate(currProposal.clientId, currProposal.updateMsg);
 
             } // else wait for more rejects
             break;
-					*/
+					
           default:
             Log.w(TAG, "Invalid message type received for a prepare response");
             break;
@@ -573,7 +593,7 @@ public abstract class PaxosNode extends RPCNode {
           toSend = new PaxosProposal(promisedNum, acceptedProposal.clientId,
                                      acceptedProposal.updateMsg);
         }
-      	PaxosMsg sendMsg = new PaxosMsg(PaxosMsgType.ACCEPTOR_IGNORE, msg.roundNum, toSend);
+      	PaxosMsg sendMsg = new PaxosMsg(PaxosMsgType.ACCEPTOR_REJECT, msg.roundNum, toSend);
         RPCSendPaxosResponse(from, sendMsg);
 
       } else if (msg.proposal.proposalNum > promisedNum) {
@@ -610,7 +630,7 @@ public abstract class PaxosNode extends RPCNode {
         // The current accepted proposal value (includes proposal num) (could be null)
       	
         // TODO: STEPH:
-        // ACCEPTOR_IGNORE messages are negative responses to Prepare requests.
+        // ACCEPTOR_REJECT messages are negative responses to Prepare requests.
         // Mixing them with Accept requests is bad news
 
         // I don't know why you want negative responses to Accept requests.
@@ -691,7 +711,7 @@ public abstract class PaxosNode extends RPCNode {
     PROPOSER_PREPARE("PROPOSER_PREPARE"),
     PROPOSER_ACCEPT("PROPOSER_ACCEPT"),
     ACCEPTOR_PROMISE("ACCEPTOR_PROMISE"),
-    ACCEPTOR_IGNORE("ACCEPTOR_IGNORE"),
+    ACCEPTOR_REJECT("ACCEPTOR_REJECT"),
     ACCEPTOR_ACCEPTED("ACCEPTOR_ACCEPTED"),
     LEARNER_DECIDED("LEARNER_DECIDED"),
     UPDATE("UPDATE");
@@ -706,7 +726,7 @@ public abstract class PaxosNode extends RPCNode {
       if(value.equals(PROPOSER_PREPARE.value)) { return PROPOSER_PREPARE; }
       else if(value.equals(PROPOSER_ACCEPT.value)) { return PROPOSER_ACCEPT; }
       else if(value.equals(ACCEPTOR_PROMISE.value)) { return ACCEPTOR_PROMISE; }
-      else if(value.equals(ACCEPTOR_IGNORE.value)) { return ACCEPTOR_IGNORE; }
+      else if(value.equals(ACCEPTOR_REJECT.value)) { return ACCEPTOR_REJECT; }
       else if(value.equals(ACCEPTOR_ACCEPTED.value)) { return ACCEPTOR_ACCEPTED; }
       else if(value.equals(LEARNER_DECIDED.value)) { return LEARNER_DECIDED; }
       else if(value.equals(UPDATE.value)) { return UPDATE; }
