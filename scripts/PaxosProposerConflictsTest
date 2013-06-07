@@ -5,18 +5,17 @@ start 3
 start 4
 time
 0 create matt pass2
-0 login matt pass2
-time
-time
-time
-time
-time
-time
-time
-time
-time
-time
 4 create steph pass1
+time
+time
+time
+time
+time
+time
+time
+time
+time
+time
 0 follow steph
 time
 time
