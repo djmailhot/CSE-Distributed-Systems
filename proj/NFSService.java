@@ -19,6 +19,7 @@ import java.util.List;
 public class NFSService {
   private static final String TEMP_FILE_PREFIX = "_cow_"; // commit on write
 
+  private final String TAG;
   private final Node node;
 
   /**
@@ -27,6 +28,7 @@ public class NFSService {
    * @param node the Node that this storage belongs to.
    */
   public NFSService(Node node) {
+    this.TAG = String.format("NFSService.%d", node.addr);
     this.node = node;
   }
 
@@ -256,14 +258,13 @@ public class NFSService {
     //System.out.println("commit " + tempname + " --> " + origfile);
     File oldFile = Utility.getFileHandle(node.addr, tempname);
     if(!oldFile.exists()) {
-    	System.out.println("Finish commit");
       return false;
     }
     File newFile = Utility.getFileHandle(node.addr, origfile);
     Files.move(oldFile.toPath(), newFile.toPath(), 
                StandardCopyOption.REPLACE_EXISTING,
                StandardCopyOption.ATOMIC_MOVE);
-    System.out.println("Finish commit 2");
+    //Log.v(TAG, String.format("Updated file %s", origfile));
     return true;
   }
 

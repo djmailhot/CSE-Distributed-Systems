@@ -19,7 +19,7 @@ import java.util.*;
  * messages
  */
 public abstract class RPCNode extends RIONode {
-  public static final String TAG = "RPCNode";
+  private final String TAG;
 
 	//----------------------------------------------------------------------------
 	// RPC Layer public interfaces
@@ -44,6 +44,7 @@ public abstract class RPCNode extends RIONode {
 
   public RPCNode() {
     super();
+    this.TAG = String.format("RPCNode.%d", addr);
   }
 
   public void start() {

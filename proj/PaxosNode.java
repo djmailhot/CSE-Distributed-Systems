@@ -18,7 +18,7 @@ import plume.Pair;
  * The PaxosNode maintains the PAXOS voting state machine.
  */
 public abstract class PaxosNode extends RPCNode {
-  public static final String TAG = "PaxosNode";
+  private final String TAG;
 
   //---------------------------------------------------------------------------
   //---------------------------------------------------------------------------
@@ -62,6 +62,7 @@ public abstract class PaxosNode extends RPCNode {
 
   PaxosNode() {
     super();
+    this.TAG = String.format("PaxosNode.%d", addr);
 
     this.instances = new TreeMap<Integer, PaxosInstance>();
     this.decidedUpdates = new TreeMap<Integer, RPCMsg>();
@@ -329,7 +330,7 @@ public abstract class PaxosNode extends RPCNode {
     protected int currRound; 
 
     public String toString() {
-      return String.format("<<< %d.%s.%d >>> :", addr, this.getClass().getSimpleName(), currRound);
+      return String.format("<<< %s[%d] >>> :", this.getClass().getSimpleName(), currRound);
     }
   }
 
@@ -450,7 +451,7 @@ public abstract class PaxosNode extends RPCNode {
         // if this message is for the current proposal
         switch(msg.msgType) {
           case ACCEPTOR_PROMISE:
-            Log.d(TAG, String.format("%s, %d promises out of %s servers", 
+            Log.d(TAG, String.format("%s %d promises out of %s servers", 
                                       this, promisingAcceptors.size(),
                                       ServerList.serverNodes.size()));
 
@@ -462,7 +463,7 @@ public abstract class PaxosNode extends RPCNode {
             break;
 
           case ACCEPTOR_REJECT:
-            Log.d(TAG, String.format("%s, %d rejects out of %s servers", 
+            Log.d(TAG, String.format("%s %d rejects out of %s servers", 
                                       this, rejectingAcceptors.size(),
                                       ServerList.serverNodes.size()));
 
@@ -470,7 +471,7 @@ public abstract class PaxosNode extends RPCNode {
 
             // If a majority rejected
             if(rejectingAcceptors.size() > ServerList.serverNodes.size() / 2) {
-              Log.v(TAG, String.format("%s, Retrying in a new round message update %s", 
+              Log.v(TAG, String.format("%s Retrying in a new round message update %s", 
                                         this, currProposal.updateMsg));
               // abort the proposal and re-propose
               tryUpdate(currProposal.clientId, currProposal.updateMsg);

@@ -24,12 +24,12 @@ import plume.Pair;
  * It uses discrete Transactions to jump from one version to the next.
  */
 public abstract class MCCNode extends PaxosNode {
-  private static final String TAG = "MCCNode";
   private static final String METAFILE = "METAFILE";
   private static final String METAFILE_DELIMITER = "\t";
   private static final String CREDENTIAL_DELIMITER = "\t";
   private static final String VERSION_DELIMITER = "@";
 
+  private final String TAG;
   protected final NFSService nfsService;
   
   private Set<Integer> committedTids;
@@ -48,6 +48,8 @@ public abstract class MCCNode extends PaxosNode {
    */
   public MCCNode() {
     super();
+    this.TAG = String.format("MCCNode.%d", addr);
+
     this.nfsService = new NFSService(this);
     this.committedTids = new HashSet<Integer>();
     this.fileVersions = new HashMap<String, Pair<Integer, Boolean>>(); // filename, (version, deleted)
@@ -588,18 +590,23 @@ public void start() {
   @Override
   public void onCommitResponse(Integer from, RPCMsg message) {
     MCCMsg msg = (MCCMsg)message;
-    Log.i(TAG, String.format("From node %d, received response %s", from, msg));
+    Log.i(TAG, "\n======================================== COMMIT RESPONSE"+
+               "=========================================\n");
+    Log.i(TAG, String.format("From node %d, for %s", from, msg.transaction));
+    Log.v(TAG, String.format("Response of %s", msg));
+
     boolean success = msg.success;
     Pair<Boolean,byte[]> securityResponse = 
                   new Pair<Boolean,byte[]>(msg.securityFlag, msg.securityCred);
     if(success && securityResponse.a) {
       // if successful, apply updates locally
-	    	System.out.println("****************IN ON RPC RESPONSE**************");
-	    	System.out.println(addr);
-	    	System.out.println(msg.transaction);
-	      success = success && commitTransaction(msg.transaction);
+      Log.v(TAG, "SUCCESS!  HALLELUJAH TO THE GODS ALMIGHTY");
+
+      success = success && commitTransaction(msg.transaction);
     } else {
       // update the cache to the most recent versions
+      Log.v(TAG, "DAMNATION!  THE GODS HAVE FORSAKEN US MORTALS");
+
       List<MCCFileData> list = new ArrayList<MCCFileData>();
       for (MCCFileData file : msg.filearray) {
       	list.add(file);
@@ -622,6 +629,8 @@ public void start() {
    *            The filesystem transaction to send.
 	 */
   public void onMCCRequest(Integer from, MCCMsg msg) {
+    Log.i(TAG, "\n======================================== COMMIT REQUEST"+
+               "=========================================\n");
     Log.i(TAG, String.format("MCC Request from %d for transaction %s", 
                               from, msg.transaction));
     Log.v(TAG, String.format("Request to commit %s", msg));
@@ -631,8 +640,9 @@ public void start() {
     NFSTransaction transaction = msg.transaction;
     MCCMsg responseMsg = null;
     if(committedTids.contains(transaction.tid)) {
-        Log.v(TAG, "DUPLICATE REQUEST, ALREADY COMMITTED ON THE SERVER");
       // DUPLICATE REQUEST, ALREADY COMMITTED ON THE SERVER
+        Log.v(TAG, "DUPLICATE REQUEST, ALREADY COMMITTED ON THE SERVER");
+
       responseMsg = new MCCMsg(msg, new ArrayList<MCCFileData>(), true, new Pair<Boolean,byte[]>(true,null));
 
     } else {
@@ -641,17 +651,16 @@ public void start() {
       Pair<Boolean,byte[]> securityResponse = checkSecurity(transaction, from, filedataUpdate.isEmpty());
 
       if(filedataUpdate.isEmpty() && securityResponse.a) {
-        Log.v(TAG, "UP-TO-VERSION!  COMMIT THAT SUCKA");
         // UP-TO-VERSION!  COMMIT THAT SUCKA
-        System.out.println("****************IN ON MCC REQUEST**************");
-        System.out.println(addr);
-        System.out.println(transaction);
+        Log.v(TAG, "UP-TO-VERSION!  COMMIT THAT SUCKA");
+
         commitTransaction(transaction);
         responseMsg = new MCCMsg(msg, filedataUpdate, true, securityResponse);
 
       } else {
-        Log.v(TAG, "NO GOOD!  TOO LATE!  get them the new version data");
         // NO GOOD!  TOO LATE!  get them the new version data
+        Log.v(TAG, "THEY'RE CRAZY!  SMACK SOME SENSE INTO THEM");
+
         responseMsg = new MCCMsg(msg, filedataUpdate, false, securityResponse);
       }
     }

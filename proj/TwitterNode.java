@@ -17,7 +17,7 @@ import plume.Pair;
  * - There are no malicious clients. (I.E. no one will delete the currently logged in user.)
  */
 public class TwitterNode extends MCCNode {
-	private static final String TAG = "TWITTERNODE";
+	private final String TAG;
 	private String username = null;
 	private byte[] userToken = null;
 	private int DEST_ADDR = 1;
@@ -39,6 +39,8 @@ public class TwitterNode extends MCCNode {
 
 	public TwitterNode() {
 		super();
+    this.TAG = String.format("TwitterNode.%d", addr);
+
 		this.ccl = new ClientCommandLogger(this);
 	}
 	
@@ -420,6 +422,7 @@ public class TwitterNode extends MCCNode {
 					if (exists(filename)) {
 						System.out.println("You are logged in as " + username);
 						
+            Log.d(TAG, String.format("SECURITY userToken %s", userToken));
 						nfsService.delete(USER_FILE);
 			            nfsService.append(USER_FILE, username + "\n" + Utility.bytesToHexString(userToken)); 
 						
