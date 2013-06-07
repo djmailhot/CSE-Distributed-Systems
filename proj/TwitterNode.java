@@ -251,7 +251,7 @@ public class TwitterNode extends MCCNode {
 		String filename = user + "_followers.txt";
 
 		//create(filename);
-		mapUUIDs(transactionId, TwitterOp.CREATE, Arrays.asList(user));
+		mapUUIDs(transactionId, TwitterOp.CREATE, Arrays.asList(user + " " + password));
 		Log.i(TAG, "idMap: " + idMap);
 		
 		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId, this.userToken);
@@ -493,7 +493,7 @@ public class TwitterNode extends MCCNode {
 						Log.i(TAG, "Unsuccessfully created user. Turtle.");
 						pollCommand(tid);
 					} else {
-						doCommand("create " + extraInfo.get(0), tid); // Retry the transaction.
+						doCommand("create " + extraInfo.get(0) + ex, tid); // Retry the transaction.
 					}
 				} catch (IOException e1) {
 					e1.printStackTrace();
