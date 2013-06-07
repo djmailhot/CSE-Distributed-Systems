@@ -104,6 +104,12 @@ public class TwitterNode extends MCCNode {
 		System.err.println("Unrecognized command: " + command + ", username: " + username);
 	}
 	
+	private void offerIfUnique(Pair<String, Integer> transaction) {
+		if(!commandQueue.contains(transaction)) {
+			commandQueue.offer(transaction);
+		}
+	}
+	
 	// TODO change create user and login to require a password
 	private boolean doCommand(String command, int transactionId) {
 		RIOLayer.responseFinalized(transactionId); // If we're retrying, we're done with the old response.
@@ -112,7 +118,7 @@ public class TwitterNode extends MCCNode {
 		String[] parsedCommand = command.split(" ");
 		String commandName = parsedCommand[0];
 		if(commandName.equals("login")) {
-			commandQueue.offer(new Pair(command, transactionId));
+			offerIfUnique(new Pair(command, transactionId));
 				if (waitingForResponse) {
 					System.out.println("Please wait!!");
 				} else {
@@ -122,7 +128,7 @@ public class TwitterNode extends MCCNode {
 			
 			return true;
 		} else if (commandName.equals("logout") && username != null) {
-			commandQueue.offer(new Pair(command, transactionId));
+			offerIfUnique(new Pair(command, transactionId));
 			if (waitingForResponse) {
 				System.out.println("Please wait!!");
 			} else {
@@ -131,9 +137,9 @@ public class TwitterNode extends MCCNode {
 			return true;
 		} else if (commandName.equals("create")) {
 			Log.i(TAG, "DO COMMAND CREATE");
-			Exception e = new RuntimeException();
-			Log.i(TAG, e.getMessage());
-			commandQueue.offer(new Pair(command, transactionId));
+			Exception ex = new RuntimeException();
+			ex.printStackTrace();
+			offerIfUnique(new Pair(command, transactionId));
 				if (waitingForResponse) {
 					System.out.println("Please wait!!");
 				} else {
@@ -145,7 +151,7 @@ public class TwitterNode extends MCCNode {
 				}
 			return true;
 		} else if (commandName.equals("tweet") && username != null) {
-			commandQueue.offer(new Pair(command, transactionId));
+			offerIfUnique(new Pair(command, transactionId));
 			if (waitingForResponse) {
 				System.out.println("Please wait!!");
 			} else {
@@ -153,7 +159,7 @@ public class TwitterNode extends MCCNode {
 			}
 			return true;
 		} else if (commandName.equals("readtweets") && username != null) {
-			commandQueue.offer(new Pair(command, transactionId));
+			offerIfUnique(new Pair(command, transactionId));
 			if (waitingForResponse) {
 				System.out.println("Please wait!!");
 			} else {
@@ -161,7 +167,7 @@ public class TwitterNode extends MCCNode {
 			}
 			return true;
 		} else if (commandName.equals("follow") && username != null) {
-			commandQueue.offer(new Pair(command, transactionId));
+			offerIfUnique(new Pair(command, transactionId));
 			if (waitingForResponse) {
 				System.out.println("Please wait!!");
 			} else {
@@ -169,7 +175,7 @@ public class TwitterNode extends MCCNode {
 			}
 			return true;
 		} else if (commandName.equals("unfollow") && username != null) {
-			commandQueue.offer(new Pair(command, transactionId));
+			offerIfUnique(new Pair(command, transactionId));
 			if (waitingForResponse) {
 				System.out.println("Please wait!!");
 			} else {
@@ -177,7 +183,7 @@ public class TwitterNode extends MCCNode {
 			}
 			return true;
 		} else if (commandName.equals("block") && username != null) {
-			commandQueue.offer(new Pair(command, transactionId));
+			offerIfUnique(new Pair(command, transactionId));
 			if (waitingForResponse) {
 				System.out.println("Please wait!!");
 			} else {
@@ -247,12 +253,13 @@ public class TwitterNode extends MCCNode {
 
 		//create(filename);
 		mapUUIDs(transactionId, TwitterOp.CREATE, Arrays.asList(user));
+		Log.i(TAG, "idMap: " + idMap);
 		
 		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId, this.userToken);
 		b.createFile_newUser(filename, user, password);
 		
 		submitTransaction(DEST_ADDR, b.build());
-		Log.i(TAG, "SENDING SUBMIT TRANSACTION FOR CREATE USER");
+		Log.i(TAG, "SENDING SUBMIT TRANSACTION FOR CREATE USER: 	" + user);
 		System.out.println("create user commit sent"); 
 	}
 	
@@ -375,6 +382,7 @@ public class TwitterNode extends MCCNode {
 	// Assumes cache is up to date
 	@Override
 	public void onMCCResponse(Integer from, int tid, boolean success, Pair<Boolean,byte[]> securityResponse) {
+		Log.i(TAG, "From: " + from + ", tid: "+ tid + ", success: "+ success + ", securityResponse");
 		waitingForResponse = false;
 		Pair<TwitterOp, List<String>> p = idMap.remove(tid);
 		if (p == null) {
@@ -382,6 +390,9 @@ public class TwitterNode extends MCCNode {
 			// If it already happened on the server, it will not do it twice.
 			Pair<String, Integer> peek = commandQueue.peek();
 			if (peek != null) {
+				Log.i(TAG, "tid: " + tid);
+				Log.i(TAG, "idMap: " + idMap);
+				Log.i(TAG, "POOP");
 				doCommand(peek.a, peek.b);
 			}
 			return;
@@ -546,10 +557,14 @@ public class TwitterNode extends MCCNode {
 	private void pollCommand(int currentTid) {
 		RIOLayer.responseFinalized(currentTid); // We're done with the old response.
 		ccl.deleteLog(currentTid);
+		Log.i(TAG, commandQueue.toString());
 		commandQueue.poll(); // Dequeue the current command
 		idMap.put(currentTid, new Pair(TwitterOp.LOGOUT, Arrays.asList("ALREADY_COMPLETED")));
+		Log.i(TAG, "response finalized for: " + currentTid);
+		Log.i(TAG, commandQueue.toString());
 		if (commandQueue.size() > 0) {
 			Pair<String, Integer> commandAndTid = commandQueue.peek();
+			Log.i(TAG, commandAndTid.toString());
 			doCommand(commandAndTid.a, commandAndTid.b);
 		}
 	}
