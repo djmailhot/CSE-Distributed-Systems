@@ -477,6 +477,8 @@ public abstract class PaxosNode extends RPCNode {
     // PREPAREd proposal (but not chosen yet, waiting for ACCEPT requests)
     private PaxosProposal currProposal;
     
+    private PaxosProposal originalProposal;
+    
     // Acceptors that responded with an ACCEPT
     // When this is a majority, broadcast LEARNER_DECIDED information.
     private Set<Integer> promisingAcceptors;
@@ -493,6 +495,7 @@ public abstract class PaxosNode extends RPCNode {
       this.currRound = currRound;
       this.maxProposalNum = 0;
       this.currProposal = null;
+      this.originalProposal = null;
       this.promisingAcceptors = new HashSet<Integer>();
       this.rejectingAcceptors = new HashSet<Integer>();
       this.state = ProposerState.NONE;
@@ -542,6 +545,9 @@ public abstract class PaxosNode extends RPCNode {
       int proposalNum = nextProposalNum();
       PaxosProposal proposal = new PaxosProposal(proposalNum, from, updateMsg);
       currProposal = proposal;
+      if (originalProposal == null) {
+      	originalProposal = proposal;
+      }
       state = ProposerState.PROMISE_WAIT;
 
       for(int address: ServerList.serverNodes) {
@@ -578,7 +584,7 @@ public abstract class PaxosNode extends RPCNode {
       		// When we learn a value is decided, then we have to compare it to the trasaction in our
       		// queue to see if it was ours or not. If our original proposal was accepted, pass it up to be
       		// processed for commit and remove it from the queue. If it wasn't, start another round and propose it agains.
-    			currProposal = new PaxosProposal(proposalNum, currProposal.clientId, msg.proposal.updateMsg);
+    			currProposal = new PaxosProposal(proposalNum, msg.proposal.clientId, msg.proposal.updateMsg);
     			//currProposal = new PaxosProposal(proposalNum, currProposal.clientId, currProposal.updateMsg);
     		}
     	}
@@ -654,9 +660,9 @@ public abstract class PaxosNode extends RPCNode {
       Log.i(TAG, String.format("%s receive decided request", this));
 
       // the decided proposal is not our own
-      if(currProposal != null && !currProposal.equals(proposal)) {
+      if(originalProposal != null && !originalProposal.equals(proposal)) {
         // so retry our own proposal
-        retryUpdate(currProposal.clientId, currProposal.updateMsg, currRound);
+        retryUpdate(originalProposal.clientId, originalProposal.updateMsg, currRound);
       }
       state = ProposerState.NONE;
 

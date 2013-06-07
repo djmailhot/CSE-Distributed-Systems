@@ -560,7 +560,7 @@ public abstract class MCCNode extends PaxosNode {
    * Will recive a response through the onMCCResponse callback method.
    */
   public void submitTransaction(NFSTransaction transaction) {
-    int destAddr = ServerList.getAServerAddr();
+    int destAddr = addr == 0 ? 1 : 2; // for DEMO PURPOSES // ServerList.getAServerAddr();
     Log.i(TAG, String.format("Commit submission to %d for %s",
                             destAddr, transaction));
     List<MCCFileData> filedataCheck = getCurrentVersions();
