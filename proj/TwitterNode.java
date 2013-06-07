@@ -30,7 +30,7 @@ public class TwitterNode extends MCCNode {
 	Queue<Pair<String, Integer>> commandQueue = new LinkedList<Pair<String, Integer>>();
 	
 	// Ignore disk crashes
-  public static double getFailureRate() { return 5/100.0; }
+  public static double getFailureRate() { return 0/100.0; }
 	public static double getDropRate() { return 0/100.0; }
 	//public static double getDelayRate() { return 0/100.0; }
 	public static double getRecoveryRate() { return 100/100.0; }
@@ -265,11 +265,13 @@ public class TwitterNode extends MCCNode {
 	private void login(String user, String password, int transactionId) {
 		waitingForResponse = true;
 		String filename = user + "_followers.txt";
+    Log.v(TAG, "OMGZBBQMONSTAR LOGGING IN");
 		
 		ArrayList<String> args = new ArrayList<String>(2);
 		args.add(user);
 		args.add(password);
 		mapUUIDs(transactionId, TwitterOp.LOGIN, args);
+    Log.d(TAG, String.format("security token %s", args));
 		
 		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId,(user + "|" + password).getBytes());
 		b.touchFile(filename);
@@ -382,6 +384,7 @@ public class TwitterNode extends MCCNode {
 	@Override
 	public void onMCCResponse(Integer from, int tid, boolean success, Pair<Boolean,byte[]> securityResponse) {
 		Log.i(TAG, "From: " + from + ", tid: "+ tid + ", success: "+ success + ", securityResponse");
+    Log.d(TAG, idMap.toString());
 		waitingForResponse = false;
 		Pair<TwitterOp, List<String>> p = idMap.remove(tid);
 		if (p == null) {
@@ -413,8 +416,10 @@ public class TwitterNode extends MCCNode {
 				break;
 			case LOGIN: 
 				username = extraInfo.get(0);
+
+        Log.d(TAG, String.format("security response %s", securityResponse));
 				userToken = securityResponse.b;
-        String userTokenString = (userToken != null) ? Utility.bytesToHexString(userToken) : null;
+        String userTokenString = Utility.bytesToHexString(userToken);
 				String filename = username + "_followers.txt";
 				try {
 					if (exists(filename)) {

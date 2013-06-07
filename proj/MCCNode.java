@@ -656,6 +656,8 @@ public abstract class MCCNode extends PaxosNode {
       // verify that the filedataCheck is up-to-version
       List<MCCFileData> filedataUpdate = checkVersions(filedataCheck, transaction);
       Pair<Boolean,byte[]> securityResponse = checkSecurity(transaction, from, filedataUpdate.isEmpty());
+      Log.v(TAG, String.format("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH %s",
+      securityResponse));
 
       if(filedataUpdate.isEmpty() && securityResponse.a) {
         // UP-TO-VERSION!  COMMIT THAT SUCKA
@@ -897,7 +899,7 @@ public abstract class MCCNode extends PaxosNode {
     MCCMsg(MCCMsg originalRequest, List<MCCFileData> filelist,
               boolean success, Pair<Boolean,byte[]> securityResponse) {
       this(originalRequest.id, filelist, originalRequest.transaction, 
-           success, new Pair<Boolean,byte[]>(true, null));
+           success, securityResponse);
     }
 
     /**
@@ -918,8 +920,8 @@ public abstract class MCCNode extends PaxosNode {
     }
 
     public String toString() {
-      return String.format("MCCMsg{%d, tid %d, success? %s}", 
-                            id, transaction.tid, success);
+      return String.format("MCCMsg{%d, tid %d, success? %s, security {%s,%s}}", 
+                            id, transaction.tid, success, securityFlag, securityCred);
     }
   }
 
