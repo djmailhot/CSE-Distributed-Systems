@@ -136,26 +136,6 @@ public abstract class PaxosNode extends RPCNode {
     StringBuilder data = new StringBuilder();
 
     data.append(String.format("%d\n", lastProcessedRound));
-/*
-    for(Integer roundNum : decidedUpdates.keySet()) {
-      Pair<Integer, RPCMsg> update = decidedUpdates.get(roundNum);
-
-      data.append(String.format("%s%d%s%d\n", INDICATOR_DECIDED, roundNum,
-                                PAXOSFILE_DELIMITER, update.a));
-
-      byte[] bytes = RPCMsg.serialize(update.b);
-      data.append(String.format("%s\n", Arrays.toString(bytes)));
-    }
-    for(Integer roundNum : submittedUpdates.keySet()) {
-      Pair<Integer, RPCMsg> update = submittedUpdates.get(roundNum);
-
-      data.append(String.format("%s%d%s%d\n", INDICATOR_SUBMITTED, roundNum,
-                                PAXOSFILE_DELIMITER, update.a));
-
-      byte[] bytes = RPCMsg.serialize(update.b);
-      data.append(String.format("%s\n", Arrays.toString(bytes)));
-    }
-    */
 
     nfsService.write(PAXOSFILE, data.toString());
   }
@@ -576,25 +556,16 @@ public abstract class PaxosNode extends RPCNode {
     		if (maxProposalNum < msg.proposal.proposalNum) {
     			maxProposalNum = msg.proposal.proposalNum;
       		int proposalNum = nextProposalNum();
-          // TODO: STEPH we definitely do not want to switch the value of our
-          // proposal's update message, otherwise we lose that update and start
-          // trying to propose a different value.... right?
-      		// TODO: DAVID, we do want to switch. If two or more proposals are made in the 
-      		// same round and no one switches, then it's automatically a standstill. 
       		// When we learn a value is decided, then we have to compare it to the trasaction in our
       		// queue to see if it was ours or not. If our original proposal was accepted, pass it up to be
       		// processed for commit and remove it from the queue. If it wasn't, start another round and propose it agains.
     			currProposal = new PaxosProposal(proposalNum, msg.proposal.clientId, msg.proposal.updateMsg);
-    			//currProposal = new PaxosProposal(proposalNum, currProposal.clientId, currProposal.updateMsg);
     		}
     	}
 
       if(msg.proposal.proposalNum == currProposal.proposalNum) {
         Log.d(TAG, String.format("%s %d promises out of %s servers", 
                                   this, promisingAcceptors.size(),
-                                  ServerList.serverNodes.size()));
-        Log.d(TAG, String.format("%s %d rejects out of %s servers", 
-                                  this, rejectingAcceptors.size(),
                                   ServerList.serverNodes.size()));
         // if this message is for the current proposal
         switch(msg.msgType) {
@@ -634,7 +605,6 @@ public abstract class PaxosNode extends RPCNode {
         }
       } else if(msg.proposal.proposalNum > currProposal.proposalNum) {
         // else, this message was for a more current proposal
-        // TODO: do something?
 
       } // else, this message was for an older proposal
       
@@ -682,11 +652,6 @@ public abstract class PaxosNode extends RPCNode {
 
     // ACCEPTED proposal (unknown if it is chosen - accepted by anyone else)
     // Initially null when no proposal has been accepted
-    // TODO: I think we do, because when we reject a promise, we have to respond
-    // with the highest proposal number that we have promised AND the value of the proposal that we
-    // have previously accepted. Then the proposer is constrainted to propose with a higher number AND a consistent value.
-    // TODO: What do you mean by consistent value?  I thought Paxos was supposed
-    // to be value-agnostic?
     private PaxosProposal acceptedProposal;
 
     Acceptor(int currRound) {
@@ -704,53 +669,8 @@ public abstract class PaxosNode extends RPCNode {
         // Ignore
         // Send a response proposal with the current promise number
       	
-        /*
-          The accepted proposal number may not match the highest promised number... 
-          in the case that there have been other promise requests after the first accept
-          TODO: STEPH Why does the Acceptor promise proposal numbers
-          that are different from it's accepted proposal?
-          TODO: DAVID, Imagine the scenario where the acceptor promises 5, accepts on that promise, so its accepted proposal
-          has number 5, then receives prepare 8. It will promise 8. Then suppose it receives yet another prepare
-          request before it accepts anything else. It's accepted proposal has number 5, but the promised number is
-          8. It needs to return 8 and the value of the accepted proposal. 
-
-          TODO: STEPH, I'm still in the dark about why the Proposer needs to
-          know what the Acceptor's previously-accepted proposal is.  I dug up
-          another comment of yours:
-
-          "DAVID, I don't think we can include proposalNum in equals
-          proposal equality depends only on the <value> of the proposal, not the number.
-          If 3/5 nodes have accepted 3 proposals with different numbers, but the same <value>, 
-          then that value is still chosen."
-
-          So when you say 'consistent' value, are you talking about this optimization?
-          On the surface, I am imagining correctness issues with this optimization.
-          Please convince me otherwise!
-          
-          One thing you can do for now:  actually set and manage the 
-          acceptedProposal variable in the Acceptor.  Remember, an Acceptor may 
-          be asked to accept multiple proposals.  The acceptedProposal variable
-          must be updated accordingly.
-          
-          ---------
-          
-          Yes, the acceptor accepts as many proposals as it is send accept requests. 
-          
-          From the paper:
-          1. A proposer chooses a new proposal number n and sends a request to
-						each member of some set of acceptors, asking it to respond with:
-						(a) A promise never again to accept a proposal numbered less than
-						n, and
-						(b) The proposal with the highest number less than n that it has
-						accepted, if any.
-						I will call such a request a prepare request with number n.
-					2. If the proposer receives the requested responses from a majority of
-						the acceptors, then it can issue a proposal with number n and value
-						v, where v is the value of the highest-numbered proposal among the
-						responses, or is any value selected by the proposer if the responders
-						reported no proposals
-						
-        */
+        // The accepted proposal number may not match the highest promised number... 
+        // in the case that there have been other promise requests after the first accept
       	PaxosProposal toSend;
         if(acceptedProposal == null) {
           toSend = new PaxosProposal(promisedNum);
@@ -789,18 +709,7 @@ public abstract class PaxosNode extends RPCNode {
                   new PaxosMsg(msg, PaxosMsgType.ACCEPTOR_ACCEPTED));
         }
       } else {
-        // TODO: DAVID!! IMPORTANT!!! I want to also sent back
-        // Accepted/Rejected
-        // The current accepted proposal value (includes proposal num) (could be null)
-      	
-        // TODO: STEPH:
-        // ACCEPTOR_REJECT messages are negative responses to Prepare requests.
-        // Mixing them with Accept requests is bad news
-
-        // I don't know why you want negative responses to Accept requests.
-        // But if you want them, make a new ACCEPTOR_REJECT message
-      	//RPCSendPaxosResponse(from, 
-        //        new PaxosMsg(msg, PaxosMsgType.ACCEPTOR_IGNORE));
+        // This a is a BOGUS Accept request, we will IGNORE it.
       }
     }
 

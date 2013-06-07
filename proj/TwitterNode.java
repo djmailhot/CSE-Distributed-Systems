@@ -111,7 +111,6 @@ public class TwitterNode extends MCCNode {
 		}
 	}
 	
-	// TODO change create user and login to require a password
 	private boolean doCommand(String command, int transactionId) {
 		RIOLayer.responseFinalized(transactionId); // If we're retrying, we're done with the old response.
 		if (command == null) { return false; }
