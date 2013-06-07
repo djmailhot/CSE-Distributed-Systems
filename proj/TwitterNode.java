@@ -131,6 +131,8 @@ public class TwitterNode extends MCCNode {
 			return true;
 		} else if (commandName.equals("create")) {
 			Log.i(TAG, "DO COMMAND CREATE");
+			Exception e = new RuntimeException();
+			Log.i(TAG, e.getMessage());
 			commandQueue.offer(new Pair(command, transactionId));
 				if (waitingForResponse) {
 					System.out.println("Please wait!!");
