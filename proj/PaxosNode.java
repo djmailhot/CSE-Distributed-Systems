@@ -104,9 +104,8 @@ public abstract class PaxosNode extends RPCNode {
         // We know we are recovering!
 
         List<String> lines = nfsService.read(PAXOSFILE);
-        int index = 0;
 
-        lastProcessedRound = Integer.parseInt(lines.get(index));
+        lastProcessedRound = Integer.parseInt(lines.get(0));
 
         // Query all other nodes for updates
         for(Integer address : ServerList.serverNodes) {
@@ -281,15 +280,6 @@ public abstract class PaxosNode extends RPCNode {
     nextRound = Math.max(nextRound, (decidedUpdates.isEmpty()) ? -1 : decidedUpdates.lastKey());
     nextRound++;
 
-    try {
-      // write our new state
-      writeState();
-    } catch(IOException e) {
-      Log.e(TAG, "File system failure on saving update submission");
-      e.printStackTrace();
-      throw new RuntimeException("File system failure on saving update submission");
-    }
-
     // spin up a new paxos instance
     PaxosInstance instance = spinupInstance(nextRound);
 
@@ -312,15 +302,6 @@ public abstract class PaxosNode extends RPCNode {
 
     // spin down the Paxos instance
     spindownInstance(roundNum);
-
-    try {
-      // write our new state
-      writeState();
-    } catch(IOException e) {
-      Log.e(TAG, "File system failure on saving update processing");
-      e.printStackTrace();
-      throw new RuntimeException("File system failure on saving update processing");
-    }
 
     // save the update locally, but don't pass it up a layer yet.
     // must first process every update before this, put in a buffer and take
@@ -380,6 +361,7 @@ public abstract class PaxosNode extends RPCNode {
           }
         }
 
+        return;
       } else {
         Log.i(TAG, "Request was an old message.");
         // this is an old message for an old round
@@ -431,6 +413,7 @@ public abstract class PaxosNode extends RPCNode {
     if(msg.msgType == PaxosMsgType.UPDATE) {
       // node receiving a catch-up update
       saveUpdate(msg.roundNum, msg.proposal.clientId, msg.proposal.updateMsg);
+      return;
     }
 
     PaxosInstance instance = spinupInstance(msg.roundNum);
