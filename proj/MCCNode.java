@@ -622,11 +622,16 @@ public void start() {
    *            The filesystem transaction to send.
 	 */
   public void onMCCRequest(Integer from, MCCMsg msg) {
+    Log.i(TAG, String.format("MCC Request from %d for transaction %s", 
+                              from, msg.transaction));
+    Log.v(TAG, String.format("Request to commit %s", msg));
+
     List<MCCFileData> filedataCheck = 
                       new ArrayList<MCCFileData>(Arrays.asList(msg.filearray));
     NFSTransaction transaction = msg.transaction;
     MCCMsg responseMsg = null;
     if(committedTids.contains(transaction.tid)) {
+        Log.v(TAG, "DUPLICATE REQUEST, ALREADY COMMITTED ON THE SERVER");
       // DUPLICATE REQUEST, ALREADY COMMITTED ON THE SERVER
       responseMsg = new MCCMsg(msg, new ArrayList<MCCFileData>(), true, new Pair<Boolean,byte[]>(true,null));
 
@@ -636,6 +641,7 @@ public void start() {
       Pair<Boolean,byte[]> securityResponse = checkSecurity(transaction, from, filedataUpdate.isEmpty());
 
       if(filedataUpdate.isEmpty() && securityResponse.a) {
+        Log.v(TAG, "UP-TO-VERSION!  COMMIT THAT SUCKA");
         // UP-TO-VERSION!  COMMIT THAT SUCKA
         System.out.println("****************IN ON MCC REQUEST**************");
         System.out.println(addr);
@@ -644,6 +650,7 @@ public void start() {
         responseMsg = new MCCMsg(msg, filedataUpdate, true, securityResponse);
 
       } else {
+        Log.v(TAG, "NO GOOD!  TOO LATE!  get them the new version data");
         // NO GOOD!  TOO LATE!  get them the new version data
         responseMsg = new MCCMsg(msg, filedataUpdate, false, securityResponse);
       }
