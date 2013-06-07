@@ -130,6 +130,7 @@ public class TwitterNode extends MCCNode {
 			}
 			return true;
 		} else if (commandName.equals("create")) {
+			Log.i(TAG, "DO COMMAND CREATE");
 			commandQueue.offer(new Pair(command, transactionId));
 				if (waitingForResponse) {
 					System.out.println("Please wait!!");
@@ -249,6 +250,7 @@ public class TwitterNode extends MCCNode {
 		b.createFile_newUser(filename, user, password);
 		
 		submitTransaction(DEST_ADDR, b.build());
+		Log.i(TAG, "SENDING SUBMIT TRANSACTION FOR CREATE USER");
 		System.out.println("create user commit sent"); 
 	}
 	
