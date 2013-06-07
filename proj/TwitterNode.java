@@ -251,7 +251,7 @@ public class TwitterNode extends MCCNode {
 		String filename = user + "_followers.txt";
 
 		//create(filename);
-		mapUUIDs(transactionId, TwitterOp.CREATE, Arrays.asList(user));
+		mapUUIDs(transactionId, TwitterOp.CREATE, Arrays.asList(user + " " + password));
 		Log.i(TAG, "idMap: " + idMap);
 		
 		NFSTransaction.Builder b = new NFSTransaction.Builder(transactionId, this.userToken);
