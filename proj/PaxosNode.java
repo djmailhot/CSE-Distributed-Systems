@@ -774,10 +774,9 @@ public abstract class PaxosNode extends RPCNode {
      */
     public void receiveAcceptRequest(int from, PaxosMsg msg) {
       Log.i(TAG, String.format("%s receive accept request", this));
-      if (msg.proposal.proposalNum == promisedNum) {
-      	// TODO: Should this be greater-than-or-equal?
-
-        // if the accept request is for the proposal we promised
+      if (msg.proposal.proposalNum >= promisedNum) {
+        // if the accept request is for a proposal newer than our
+        // promisedNum
         // broadcast to all Learners that we've Accepted a value
         for(int address: ServerList.serverNodes) {
           RPCSendPaxosRequest(address, 
@@ -831,16 +830,18 @@ public abstract class PaxosNode extends RPCNode {
       }
       if(acceptedAcceptors.get(msg.proposal).size() > ServerList.serverNodes.size() / 2) {
       	// broadcast decided
-      	if (!decided) {
-      		decided = true;
-      		broadcastDecidedRequests(msg.proposal);
-      	}
+        broadcastDecidedRequests(msg.proposal);
       }
     }    
     
     // send accept requests to all servers
     private void broadcastDecidedRequests(PaxosProposal proposal) {
       Log.i(TAG, String.format("%s broadcast decided requests", this));
+      if(decided) {
+        // if we already sent out decided requests
+        return;
+      }
+      decided = true;
       for(int address: ServerList.serverNodes) {
         // send even to myself
         RPCSendPaxosRequest(address, 
